@@ -1,0 +1,113 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Times the api/ reactor with host Maven, warm mvnd, and the build-cache
+# extension. Publishes wall-clock seconds. It does not fail when the speedup
+# is smaller than a laptop measurement, and it is not a gate for other builds.
+name: Build speedup bench
+
+# workflow_dispatch, plus pull requests into master that touch this workflow
+# or .github/bench. A push trigger on the same branch cancels the pull_request
+# run (or the reverse) and the cancelled run is reported as a failed check.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/build-speedup-bench.yml"
+      - ".github/bench/**"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: build-speedup-bench-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  api-reactor:
+    name: api/ mvn vs mvnd vs build-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Apache Maven 3.9.11
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=3.9.11
+          url="https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/${version}/apache-maven-${version}-bin.tar.gz"
+          sha512="bcfe4fe305c962ace56ac7b5fc7a08b87d5abd8b7e89027ab251069faebee516b0ded8961445d6d91ec1985dfe30f8153268843c89aa392733d1a3ec956c9978"
+          archive="/tmp/apache-maven-${version}-bin.tar.gz"
+          curl -fsSL "$url" -o "$archive"
+          echo "${sha512}  ${archive}" | sha512sum -c -
+          tar -xzf "$archive" -C "$HOME"
+          echo "$HOME/apache-maven-${version}/bin" >> "$GITHUB_PATH"
+
+      - name: Install Maven Daemon 1.0.6
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$(uname -m)" != "x86_64" ]]; then
+            echo "::error::mvnd 1.0.6 is pinned for linux-amd64; this runner is $(uname -m)"
+            exit 1
+          fi
+          version=1.0.6
+          url="https://github.com/apache/maven-mvnd/releases/download/${version}/maven-mvnd-${version}-linux-amd64.tar.gz"
+          sha256="88fd474fd3f21b33ec1e6a75950f6abbe493d63a5e2b429475f5230b3ee6cb24"
+          archive="/tmp/maven-mvnd-${version}-linux-amd64.tar.gz"
+          curl -fsSL "$url" -o "$archive"
+          echo "${sha256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C "$HOME"
+          echo "$HOME/maven-mvnd-${version}-linux-amd64/bin" >> "$GITHUB_PATH"
+
+      - name: Show tool versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -version
+          echo "---"
+          mvn -version
+          echo "---"
+          mvnd --version
+          echo "---"
+          echo "nproc=$(nproc)"
+
+      - name: Time api/ reactor
+        shell: bash
+        run: bash .github/bench/run-bench.sh
+
+      - name: Upload timing logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-speedup-bench-logs
+          retention-days: 14
+          if-no-files-found: warn
+          path: bench-logs/
