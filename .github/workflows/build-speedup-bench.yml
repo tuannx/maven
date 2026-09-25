@@ -20,14 +20,11 @@
 # is smaller than a laptop measurement, and it is not a gate for other builds.
 name: Build speedup bench
 
+# workflow_dispatch, plus pull requests into master that touch this workflow
+# or .github/bench. A push trigger on the same branch cancels the pull_request
+# run (or the reverse) and the cancelled run is reported as a failed check.
 on:
   workflow_dispatch:
-  push:
-    branches-ignore:
-      - master
-    paths:
-      - ".github/workflows/build-speedup-bench.yml"
-      - ".github/bench/**"
   pull_request:
     branches:
       - master
