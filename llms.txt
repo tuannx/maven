@@ -30,7 +30,6 @@ Full contract: [.github/actions/build-speedup-bench/llms.txt](.github/actions/bu
 ```yaml
 permissions:
   contents: read
-  actions: write
 
 steps:
   - uses: actions/checkout@v7
@@ -39,7 +38,7 @@ steps:
       pom: pom.xml
 ```
 
-This fork's dogfood passes `pom: api/pom.xml` and uses `uses: ./.github/actions/build-speedup-bench`. PR check name: `build-speedup-bench`.
+This fork's dogfood passes `pom: api/pom.xml`, `upload-logs: true`, and uses `uses: ./.github/actions/build-speedup-bench`. That workflow's `actions: write` is only for the step "Upload timing logs" (`actions/upload-artifact`). PR check name: `build-speedup-bench`.
 
 ## Contract (short)
 
@@ -48,5 +47,6 @@ This fork's dogfood passes `pom: api/pom.xml` and uses `uses: ./.github/actions/
 - Table is appended to `GITHUB_STEP_SUMMARY`. Logs artifact: `build-speedup-bench-logs`.
 - Build-cache extension is opt-in and removed before the action exits. Refuses to start if `.mvn/extensions.xml` or `.mvn/maven-build-cache-config.xml` already exists.
 - Does not fail when the speedup is small.
-- `sticky-comment` defaults to false. True requires `pull-requests: write` and a `pull_request` event.
+- Default permissions: `contents: read`. `actions: write` only when `upload-logs: true` (step "Upload timing logs", `actions/upload-artifact`; default off). `pull-requests: write` only when `sticky-comment: true` (step "Update sticky pull request comment"; default off).
+- `mvn-runs` and `mvnd-warm-runs` default to 3 so the median is the middle sample. Two runs make the median the average of a pair. Three stays under 10 minutes on the api/ dogfood.
 - Does not create the `v1` tag.

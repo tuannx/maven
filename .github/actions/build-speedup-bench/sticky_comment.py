@@ -57,6 +57,21 @@ def request(token, method, url, payload=None):
         fail(f"GitHub API {method} {url} returned {error.code}: {detail[:500]}")
 
 
+def own_comment_id(comments):
+    """Return the id of the first comment that contains MARKER, else None."""
+    for comment in comments or []:
+        if MARKER in (comment.get("body") or ""):
+            return comment.get("id")
+    return None
+
+
+def plan_update(existing_id, repo, pr):
+    """POST a new issue comment, or PATCH only the comment id that holds MARKER."""
+    if existing_id is None:
+        return "POST", f"{API}/repos/{repo}/issues/{pr}/comments"
+    return "PATCH", f"{API}/repos/{repo}/issues/comments/{existing_id}"
+
+
 def find_comment(token, repo, pr):
     page = 1
     while page <= 5:
@@ -67,9 +82,9 @@ def find_comment(token, repo, pr):
         )
         if status != 200 or not comments:
             return None
-        for comment in comments:
-            if MARKER in (comment.get("body") or ""):
-                return comment["id"]
+        found = own_comment_id(comments)
+        if found is not None:
+            return found
         if len(comments) < 100:
             return None
         page += 1
@@ -92,14 +107,15 @@ def main():
     if not os.path.isfile(summary_path):
         print(f"sticky comment skipped (missing {summary_path})")
         return
-    summary = open(summary_path, encoding="utf-8").read().strip()
+    with open(summary_path, encoding="utf-8") as handle:
+        summary = handle.read().strip()
     body = f"{MARKER}\n{summary}\n"
     existing = find_comment(token, repo, pr)
+    method, url = plan_update(existing, repo, pr)
+    request(token, method, url, {"body": body})
     if existing is None:
-        request(token, "POST", f"{API}/repos/{repo}/issues/{pr}/comments", {"body": body})
         print(f"Created sticky bench comment on PR {pr}")
         return
-    request(token, "PATCH", f"{API}/repos/{repo}/issues/comments/{existing}", {"body": body})
     print(f"Updated sticky bench comment {existing} on PR {pr}")
 
 

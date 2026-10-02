@@ -46,13 +46,17 @@ inputs:
     required: false
     default: ""
   mvn-runs:
-    description: Number of timed host mvn clean package runs.
+    description: >-
+      Timed host mvn clean package runs. Default 3 so the median is the middle
+      sample. Two runs make the median the average of a pair.
     required: false
-    default: "2"
+    default: "3"
   mvnd-warm-runs:
-    description: Number of timed warm mvnd clean package runs after one cold run.
+    description: >-
+      Timed warm mvnd clean package runs after one cold run. Default 3, same
+      median reason as mvn-runs.
     required: false
-    default: "2"
+    default: "3"
   threads:
     description: Value passed to mvn/mvnd -T.
     required: false
@@ -80,17 +84,19 @@ inputs:
     required: false
     default: ""
   upload-logs:
-    description: Upload bench-logs as a workflow artifact.
+    description: >-
+      Upload bench-logs with actions/upload-artifact (step "Upload timing logs").
+      Requires actions:write. Default false so contents:read is enough.
     required: false
-    default: "true"
+    default: "false"
   artifact-name:
     description: Artifact name when upload-logs is true.
     required: false
     default: build-speedup-bench-logs
   sticky-comment:
     description: >-
-      Update one pull request comment with the summary. Default off.
-      The caller job needs pull-requests:write. No effect outside pull_request.
+      Update one pull request comment (step "Update sticky pull request comment").
+      Default off. Requires pull-requests:write. No effect outside pull_request.
     required: false
     default: "false"
 

@@ -28,7 +28,6 @@ Checkout the project under test, then one `uses` line. `v1` is a moving tag cut 
 ```yaml
 permissions:
   contents: read
-  actions: write
 
 steps:
   - uses: actions/checkout@v7
@@ -52,17 +51,17 @@ Runner: `ubuntu-latest` with `python3`, `curl`, `tar`, `sha256sum`, `sha512sum`.
 | maven-version | no | 3.9.11 | host Maven; Central `.sha512` verified |
 | mvnd-version | no | 1.0.6 | daemon; `build-cache` runs `mvnd` |
 | mvnd-sha256 | no | empty | required if version is not 1.0.6 on linux-amd64 and the release has no `.sha256` asset |
-| mvn-runs | no | 2 | timed `mvn clean package` count |
-| mvnd-warm-runs | no | 2 | timed warm `mvnd clean package` count after one cold run |
+| mvn-runs | no | 3 | timed `mvn clean package` count. Median is the middle sample. 2 makes the median the average of a pair |
+| mvnd-warm-runs | no | 3 | timed warm `mvnd clean package` count after one cold run. Same median reason as mvn-runs |
 | threads | no | 1C | `-T` |
 | extra-maven-args | no | -DskipTests -Drat.skip=true -Dcheckstyle.skip=true -Denforcer.skip=true | whitespace-separated; no spaces inside a single argument |
 | java-version | no | 21 | used only when setup-java is true |
 | java-distribution | no | temurin | actions/setup-java distribution |
 | setup-java | no | true | false means JAVA_HOME is already set |
 | touch-file | no | empty | java file for mtime touch and one-line edit; empty discovers the first `src/main/java/**/*.java` under the POM directory |
-| upload-logs | no | true | upload `bench-logs/` for 14 days |
+| upload-logs | no | false | true uploads `bench-logs/` for 14 days via step "Upload timing logs" (`actions/upload-artifact`) and requires `actions: write` |
 | artifact-name | no | build-speedup-bench-logs | artifact name |
-| sticky-comment | no | false | update one PR issue comment containing `<!-- build-speedup-bench -->`; no effect if the event is not pull_request |
+| sticky-comment | no | false | true runs step "Update sticky pull request comment": update one issue comment whose body contains `<!-- build-speedup-bench -->`. Requires `pull-requests: write`. No effect if the event is not pull_request |
 
 Every timed command is `mvn|mvnd -f <pom> --batch-mode -q <extra-maven-args> -T <threads> [clean] package`.
 
@@ -84,9 +83,11 @@ Speedup column in the table is `mvn median / seconds`. Higher is faster. Job sum
 
 | scope | needed |
 |---|---|
-| contents: read | caller checkout |
-| actions: write | upload-logs true (default) |
-| pull-requests: write | sticky-comment true only |
+| contents: read | caller checkout. Sufficient when upload-logs and sticky-comment stay at their defaults (both false) |
+| actions: write | only when upload-logs is true. Step name: "Upload timing logs". Action: actions/upload-artifact |
+| pull-requests: write | only when sticky-comment is true. Step name: "Update sticky pull request comment" |
+
+Run count: default 3 for mvn-runs and mvnd-warm-runs. On the api/ dogfood a 2-run job was under 2 minutes; one extra host mvn clean is about 13s and one extra warm mvnd clean is about 4s, so 3 stays far under 10 minutes. Two runs are noisier because the median is then the average of the pair. Do not default to 4.
 
 ## Does not
 

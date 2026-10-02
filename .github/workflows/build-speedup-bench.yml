@@ -28,7 +28,10 @@ on:
         default: api/pom.xml
         type: string
       sticky-comment:
-        description: Update one sticky comment when this dispatch is for a pull request
+        description: >-
+          Leave false. This workflow does not grant pull-requests: write.
+          Callers that set sticky-comment true must allow the step
+          "Update sticky pull request comment".
         required: false
         default: false
         type: boolean
@@ -42,8 +45,8 @@ on:
 
 permissions:
   contents: read
+  # Step "Upload timing logs" inside the action calls actions/upload-artifact.
   actions: write
-  pull-requests: write
 
 concurrency:
   group: build-speedup-bench-${{ github.head_ref || github.ref_name }}
@@ -60,11 +63,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Unit-test bench helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+            -s .github/actions/build-speedup-bench -p 'test_*.py' -v
+
       - name: build-speedup-bench
         id: bench
         uses: ./.github/actions/build-speedup-bench
         with:
           pom: ${{ github.event_name == 'workflow_dispatch' && inputs.pom || 'api/pom.xml' }}
+          upload-logs: true
           sticky-comment: ${{ github.event_name == 'workflow_dispatch' && inputs.sticky-comment }}
 
       - name: Require action outputs
