@@ -53,8 +53,8 @@ dependency_direction:
     - compat
     - apache-maven
 
-# A changed workflow may grant scope: write only when the file also contains a marker.
-# contents: write is absent here, so it fails the check. ADR-0005.
+# A changed workflow may grant a write scope only when the file also contains a marker.
+# A contents write grant is not listed, so the check fails it. ADR-0005.
 least_privilege:
   actions:
     - actions/upload-artifact
