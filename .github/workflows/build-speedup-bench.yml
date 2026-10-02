@@ -15,34 +15,43 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Times the api/ reactor with host Maven, warm mvnd, and the build-cache
-# extension. Publishes wall-clock seconds. It does not fail when the speedup
-# is smaller than a laptop measurement, and it is not a gate for other builds.
-name: Build speedup bench
+# Dogfood for the composite action. The check name is the job name
+# build-speedup-bench. Callers pin the action with @v1 after that tag is cut.
+name: build-speedup-bench
 
-# workflow_dispatch, plus pull requests into master that touch this workflow
-# or .github/bench. A push trigger on the same branch cancels the pull_request
-# run (or the reverse) and the cancelled run is reported as a failed check.
 on:
   workflow_dispatch:
+    inputs:
+      pom:
+        description: Reactor POM passed to the action
+        required: false
+        default: api/pom.xml
+        type: string
+      sticky-comment:
+        description: Update one sticky comment when this dispatch is for a pull request
+        required: false
+        default: false
+        type: boolean
   pull_request:
     branches:
       - master
     paths:
       - ".github/workflows/build-speedup-bench.yml"
-      - ".github/bench/**"
+      - ".github/actions/build-speedup-bench/**"
+      - "llms.txt"
 
 permissions:
   contents: read
   actions: write
+  pull-requests: write
 
 concurrency:
   group: build-speedup-bench-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  api-reactor:
-    name: api/ mvn vs mvnd vs build-cache
+  bench:
+    name: build-speedup-bench
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -51,63 +60,34 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Temurin JDK 21
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - name: build-speedup-bench
+        id: bench
+        uses: ./.github/actions/build-speedup-bench
         with:
-          distribution: temurin
-          java-version: "21"
+          pom: ${{ github.event_name == 'workflow_dispatch' && inputs.pom || 'api/pom.xml' }}
+          sticky-comment: ${{ github.event_name == 'workflow_dispatch' && inputs.sticky-comment }}
 
-      - name: Install Apache Maven 3.9.11
+      - name: Require action outputs
+        if: success()
         shell: bash
+        env:
+          MVN_MEDIAN: ${{ steps.bench.outputs.mvn-median-seconds }}
+          WARM_SPEEDUP: ${{ steps.bench.outputs.warm-mvnd-speedup }}
+          CACHE_NO_CHANGE: ${{ steps.bench.outputs.cache-no-change-seconds }}
+          SUMMARY_PATH: ${{ steps.bench.outputs.summary-path }}
         run: |
           set -euo pipefail
-          version=3.9.11
-          url="https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/${version}/apache-maven-${version}-bin.tar.gz"
-          sha512="bcfe4fe305c962ace56ac7b5fc7a08b87d5abd8b7e89027ab251069faebee516b0ded8961445d6d91ec1985dfe30f8153268843c89aa392733d1a3ec956c9978"
-          archive="/tmp/apache-maven-${version}-bin.tar.gz"
-          curl -fsSL "$url" -o "$archive"
-          echo "${sha512}  ${archive}" | sha512sum -c -
-          tar -xzf "$archive" -C "$HOME"
-          echo "$HOME/apache-maven-${version}/bin" >> "$GITHUB_PATH"
-
-      - name: Install Maven Daemon 1.0.6
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$(uname -m)" != "x86_64" ]]; then
-            echo "::error::mvnd 1.0.6 is pinned for linux-amd64; this runner is $(uname -m)"
-            exit 1
-          fi
-          version=1.0.6
-          url="https://github.com/apache/maven-mvnd/releases/download/${version}/maven-mvnd-${version}-linux-amd64.tar.gz"
-          sha256="88fd474fd3f21b33ec1e6a75950f6abbe493d63a5e2b429475f5230b3ee6cb24"
-          archive="/tmp/maven-mvnd-${version}-linux-amd64.tar.gz"
-          curl -fsSL "$url" -o "$archive"
-          echo "${sha256}  ${archive}" | sha256sum -c -
-          tar -xzf "$archive" -C "$HOME"
-          echo "$HOME/maven-mvnd-${version}-linux-amd64/bin" >> "$GITHUB_PATH"
-
-      - name: Show tool versions
-        shell: bash
-        run: |
-          set -euo pipefail
-          java -version
-          echo "---"
-          mvn -version
-          echo "---"
-          mvnd --version
-          echo "---"
-          echo "nproc=$(nproc)"
-
-      - name: Time api/ reactor
-        shell: bash
-        run: bash .github/bench/run-bench.sh
-
-      - name: Upload timing logs
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: build-speedup-bench-logs
-          retention-days: 14
-          if-no-files-found: warn
-          path: bench-logs/
+          test -n "$MVN_MEDIAN"
+          test -n "$WARM_SPEEDUP"
+          test -n "$CACHE_NO_CHANGE"
+          test -f "$SUMMARY_PATH"
+          grep -q '| Scenario | Seconds | Speedup vs mvn median |' "$SUMMARY_PATH"
+          {
+            echo "### Checked outputs"
+            echo ""
+            echo "| Output | Value |"
+            echo "|---|---|"
+            echo "| mvn-median-seconds | ${MVN_MEDIAN} |"
+            echo "| warm-mvnd-speedup | ${WARM_SPEEDUP} |"
+            echo "| cache-no-change-seconds | ${CACHE_NO_CHANGE} |"
+          } >> "$GITHUB_STEP_SUMMARY"

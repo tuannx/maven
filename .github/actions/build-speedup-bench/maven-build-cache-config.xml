@@ -18,9 +18,9 @@ specific language governing permissions and limitations
 under the License.
 -->
 <!--
-  Bench-only template. Copied to .mvn/maven-build-cache-config.xml for the
-  cache segment of the speedup workflow. Minimal config from the 1.2.0
-  extension how-to: content hashes, so a mtime-only touch does not miss.
+  Bench-only template. The composite action copies this to
+  .mvn/maven-build-cache-config.xml for the cache segment only.
+  Minimal 1.2.0 config: content hashes, so a mtime-only touch does not miss.
 -->
 <cache xmlns="http://maven.apache.org/BUILD-CACHE-CONFIG/1.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://maven.apache.org/BUILD-CACHE-CONFIG/1.2.0 https://maven.apache.org/xsd/build-cache-config-1.2.0.xsd">

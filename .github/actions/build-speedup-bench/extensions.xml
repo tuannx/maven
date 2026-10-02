@@ -18,9 +18,9 @@ specific language governing permissions and limitations
 under the License.
 -->
 <!--
-  Bench-only template. The speedup workflow copies this to .mvn/extensions.xml
+  Bench-only template. The composite action copies this to .mvn/extensions.xml
   after the host-mvn and mvnd baseline runs, then deletes the copy.
-  It is not installed for ordinary builds of this tree.
+  It is not installed for ordinary builds of the caller.
 -->
 <extensions xmlns="http://maven.apache.org/EXTENSIONS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://maven.apache.org/EXTENSIONS/1.0.0 https://maven.apache.org/xsd/core-extensions-1.0.0.xsd">

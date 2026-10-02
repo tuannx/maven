@@ -1,0 +1,110 @@
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+# build-speedup-bench
+
+> Composite GitHub Action at tuannx/maven/.github/actions/build-speedup-bench. Wall-clocks one Maven reactor and appends a markdown table to GITHUB_STEP_SUMMARY. Personal fork only. Do not open pull requests or comments on apache/maven or any other third-party repo for this action.
+
+## Adopt
+
+Checkout the project under test, then one `uses` line. `v1` is a moving tag cut on master after merge. It does not exist until a human pushes it. Until then, pin a commit SHA.
+
+```yaml
+permissions:
+  contents: read
+  actions: write
+
+steps:
+  - uses: actions/checkout@v7
+  - uses: tuannx/maven/.github/actions/build-speedup-bench@v1
+    with:
+      pom: pom.xml
+```
+
+Dogfood in this repo: `uses: ./.github/actions/build-speedup-bench` with `pom: api/pom.xml`. Workflow: `.github/workflows/build-speedup-bench.yml`. Job name / PR check: `build-speedup-bench`.
+
+Pass the aggregator POM to `pom` (`mvn -f`). Do not use `-pl <module> -am` from a parent reactor.
+
+Runner: `ubuntu-latest` with `python3`, `curl`, `tar`, `sha256sum`, `sha512sum`. Set the job `timeout-minutes` to at least 45.
+
+## Inputs
+
+| name | required | default | meaning |
+|---|---|---|---|
+| pom | no | pom.xml | `-f` path |
+| scenarios | no | mvn,mvnd,build-cache | comma-separated subset of `mvn`, `mvnd`, `build-cache` |
+| maven-version | no | 3.9.11 | host Maven; Central `.sha512` verified |
+| mvnd-version | no | 1.0.6 | daemon; `build-cache` runs `mvnd` |
+| mvnd-sha256 | no | empty | required if version is not 1.0.6 on linux-amd64 and the release has no `.sha256` asset |
+| mvn-runs | no | 2 | timed `mvn clean package` count |
+| mvnd-warm-runs | no | 2 | timed warm `mvnd clean package` count after one cold run |
+| threads | no | 1C | `-T` |
+| extra-maven-args | no | -DskipTests -Drat.skip=true -Dcheckstyle.skip=true -Denforcer.skip=true | whitespace-separated; no spaces inside a single argument |
+| java-version | no | 21 | used only when setup-java is true |
+| java-distribution | no | temurin | actions/setup-java distribution |
+| setup-java | no | true | false means JAVA_HOME is already set |
+| touch-file | no | empty | java file for mtime touch and one-line edit; empty discovers the first `src/main/java/**/*.java` under the POM directory |
+| upload-logs | no | true | upload `bench-logs/` for 14 days |
+| artifact-name | no | build-speedup-bench-logs | artifact name |
+| sticky-comment | no | false | update one PR issue comment containing `<!-- build-speedup-bench -->`; no effect if the event is not pull_request |
+
+Every timed command is `mvn|mvnd -f <pom> --batch-mode -q <extra-maven-args> -T <threads> [clean] package`.
+
+`build-cache` copies `extensions.xml` and `maven-build-cache-config.xml` from this action directory into the caller `.mvn/` after the baseline, then deletes those two files. maven-build-cache-extension version is 1.2.0. The action refuses to start if `.mvn/extensions.xml` or `.mvn/maven-build-cache-config.xml` already exists.
+
+## Outputs
+
+| name | type | example | empty when |
+|---|---|---|---|
+| mvn-median-seconds | decimal seconds | 12.98 | scenario `mvn` not run |
+| warm-mvnd-seconds | decimal seconds | 4.26 | scenario `mvnd` not run |
+| warm-mvnd-speedup | decimal ratio, no x suffix | 3.04 | mvn median or warm median missing |
+| cache-no-change-seconds | decimal seconds | 0.44 | scenario `build-cache` not run |
+| summary-path | workspace-relative path | bench-logs/summary.md | not empty after the measure step |
+
+Speedup column in the table is `mvn median / seconds`. Higher is faster. Job summary also lists these outputs.
+
+## Permissions
+
+| scope | needed |
+|---|---|
+| contents: read | caller checkout |
+| actions: write | upload-logs true (default) |
+| pull-requests: write | sticky-comment true only |
+
+## Does not
+
+- Fail the job when warm mvnd is not faster than mvn. Emits `::warning::` and still exits 0 if the builds exit 0.
+- Leave the build-cache extension installed.
+- Modify product source. The one-line edit is restored from a byte copy before exit.
+- Run Surefire, the core IT suite, or a full Apache release build unless the caller points `pom` at that reactor and removes skip args.
+- Create git tags or GitHub releases.
+- Open pull requests or comments on apache/maven or any repo other than the caller. `sticky-comment` comments only on the caller pull request, and only when the input is true.
+
+## Tag
+
+After merge to master, a human cuts the moving major tag (do not invent a tag from CI):
+
+```bash
+git fetch origin master
+git tag -f v1 origin/master
+git push -f origin v1
+```
+
+Consumers then use `@v1`. Move the tag forward for compatible action fixes. Do not force-move it for an input or output rename; use a new major tag.
