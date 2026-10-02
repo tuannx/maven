@@ -34,7 +34,31 @@ def load_schema():
 def validate(instance, schema=None):
     document = schema if schema is not None else load_schema()
     defs = document.get("$defs", {})
-    return _check(instance, document, defs, "$")
+    errors = _check(instance, document, defs, "$")
+    errors.extend(_state_errors(instance))
+    return errors
+
+
+def _state_errors(instance):
+    if not isinstance(instance, dict):
+        return []
+    dimensions = instance.get("dimensions")
+    if not isinstance(dimensions, dict):
+        return []
+    errors = []
+    for name, item in dimensions.items():
+        if not isinstance(item, dict):
+            continue
+        state = item.get("state")
+        path = f"$.dimensions.{name}"
+        if state == "not_applicable" and "score" in item:
+            errors.append(f"{path} not_applicable has score")
+        elif state in ("scored", "no_evidence") and "score" not in item:
+            errors.append(f"{path} missing score")
+        elif state == "no_evidence" and isinstance(item.get("score"), int) and not isinstance(item.get("score"), bool):
+            if item["score"] > 2:
+                errors.append(f"{path} no_evidence maximum")
+    return errors
 
 
 def _check(instance, schema, defs, path):

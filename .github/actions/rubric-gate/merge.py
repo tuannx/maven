@@ -113,18 +113,38 @@ def score_security(rules):
     return score.dim(3, "secret, contents: write, and third-party push rules passed")
 
 
+WEAK_CAP = "capped at 2; no structural check; the llm hook cannot raise this"
+WRITE_PERMISSION = re.compile(
+    r"(?i)(contents|actions|pull-requests|checks|packages|security-events|id-token):\s*write"
+)
+
+
+def cap_weak(item):
+    evidence = list(item["evidence"])
+    if WEAK_CAP not in evidence:
+        evidence.append(WEAK_CAP)
+    return score.dim(min(item["score"], 2), evidence)
+
+
 def score_intent(paths, patch):
     new_action = any(path.startswith(".github/actions/") and path.endswith("/action.yml") for path in paths)
     indexed = any(path == "llms.txt" or path.endswith("/llms.txt") for path in paths)
     if new_action and not indexed:
-        return score.dim(1, "action.yml added and no llms.txt in the diff")
-    fix_marker = "FIX" + "ME"
-    triple = "XX" + "X"
-    for path, lines in added_by_file(patch).items():
-        for line in lines:
-            if fix_marker in line or triple in line:
-                return score.dim(1, f"banned marker added in {path}")
-    return score.dim(3, "new actions are indexed; no banned marker added")
+        found = score.dim(1, "action.yml added and no llms.txt in the diff")
+    else:
+        found = None
+        fix_marker = "FIX" + "ME"
+        triple = "XX" + "X"
+        for path, lines in added_by_file(patch).items():
+            for line in lines:
+                if fix_marker in line or triple in line:
+                    found = score.dim(1, f"banned marker added in {path}")
+                    break
+            if found:
+                break
+        if found is None:
+            found = score.dim(2, "new actions are indexed; no banned marker added")
+    return cap_weak(found)
 
 
 def score_architecture(paths):
@@ -142,39 +162,72 @@ def score_architecture(paths):
         else:
             outliers.append(path)
     if outliers:
-        return score.dim(2, "paths outside the agent and product trees: " + ", ".join(sorted(outliers)[:8]))
-    return score.dim(3, "diff stays in the agent contract paths or the product tree")
+        found = score.dim(2, "paths outside the agent and product trees: " + ", ".join(sorted(outliers)[:8]))
+    else:
+        found = score.dim(2, "diff stays in the agent contract paths or the product tree")
+    return cap_weak(found)
 
 
 def score_determinism(patch):
     hits = []
+    saw_python = False
     for path, lines in added_by_file(patch).items():
         if not path.endswith(".py"):
             continue
+        saw_python = True
         for line in score.strip_leading_comments(lines):
             if NONDETERMINISTIC.search(line):
                 hits.append(path)
                 break
+    if not saw_python:
+        return score.not_applicable("no added Python")
     if hits:
         return score.dim(1, "nondeterministic call in " + ", ".join(hits))
     return score.dim(3, "no random, datetime.now, or time.time on added Python lines")
 
 
+def risky_paths(paths, patch):
+    added = added_by_file(patch)
+    risky = []
+    for path in paths:
+        top = path.split("/", 1)[0]
+        build_file = path == "pom.xml" or path.startswith(".mvn/") or path.endswith("/pom.xml") or path.endswith("pom.xml")
+        if top in score.PRODUCT_TOPS or build_file:
+            risky.append(path)
+            continue
+        if path.startswith(".github/workflows/") and path.endswith((".yml", ".yaml")):
+            if WRITE_PERMISSION.search("\n".join(added.get(path, []))):
+                risky.append(path)
+    return risky
+
+
 def combine(parts):
-    score_value = min(part["score"] for part in parts)
+    applicable = [part for part in parts if part.get("state") != "not_applicable"]
+    if not applicable:
+        return score.not_applicable("no applicable clarity signal")
     evidence = []
-    for part in parts:
+    for part in applicable:
         evidence.extend(part["evidence"])
-    return score.dim(score_value, evidence)
+    if any(part.get("state") == "no_evidence" for part in applicable):
+        values = [part["score"] for part in applicable if "score" in part]
+        return score.no_evidence(evidence, min(values) if values else 2)
+    return score.dim(min(part["score"] for part in applicable), evidence)
 
 
-def decide(dimensions, rules, loop):
+def decide(dimensions, rules, loop, risky=False):
     if any(not rule["passed"] for rule in rules):
         return "ESCALATE"
-    scores = [dimensions[name]["score"] for name in DIMENSIONS]
-    if any(value == 0 for value in scores):
+    applicable = []
+    for name in DIMENSIONS:
+        item = dimensions[name]
+        if item["state"] == "not_applicable":
+            continue
+        if item["state"] == "no_evidence" and risky:
+            return "ESCALATE"
+        applicable.append(item["score"])
+    if any(value == 0 for value in applicable):
         return "ESCALATE"
-    if all(value == 3 for value in scores):
+    if applicable and all(value == 3 for value in applicable):
         return "AUTO_MERGE_OK"
     if loop >= 2:
         return "ESCALATE"
@@ -186,7 +239,25 @@ def scorer_view(body):
 
 
 def missing_scorer(name):
-    return {"scorer": name, "status": "missing", "dimensions": {}, "evidence": [f"{name} result missing"]}
+    return {
+        "scorer": name,
+        "status": "missing",
+        "dimensions": {},
+        "evidence": [f"{name} result missing"],
+    }
+
+
+def no_evidence_rule(dimensions, risky):
+    blind = [name for name in DIMENSIONS if dimensions[name]["state"] == "no_evidence"]
+    if blind and risky:
+        return hard_rule(
+            "no-evidence-risky",
+            False,
+            "no_evidence on " + ", ".join(blind) + "; risky paths present",
+        )
+    if blind:
+        return hard_rule("no-evidence-risky", True, "no_evidence capped at 2; paths are not risky")
+    return hard_rule("no-evidence-risky", True, "no no_evidence dimension")
 
 
 def run_llm_hook(enabled, command, dimensions):
@@ -240,13 +311,19 @@ def build_verdict(results, patch, paths, workflow_text, loop, head_sha, base_sha
         if part:
             clarity_parts.append(part)
     if not clarity_parts:
-        clarity_parts.append(score.dim(0, "clarity scorers missing"))
+        clarity_parts.append(score.no_evidence("clarity scorers missing"))
+
+    def owned(scorer_name, dimension):
+        found = by_name[scorer_name]["dimensions"].get(dimension)
+        if found:
+            return found
+        return score.no_evidence(f"{scorer_name} result missing")
 
     dimensions = {
-        "correctness": by_name["affected-build"]["dimensions"].get("correctness") or score.dim(0, "affected-build missing"),
-        "tests": by_name["affected-build"]["dimensions"].get("tests") or score.dim(0, "affected-build missing"),
-        "compat": by_name["japicmp"]["dimensions"].get("compat") or score.dim(0, "japicmp missing"),
-        "perf": by_name["bench-delta"]["dimensions"].get("perf") or score.dim(0, "bench-delta missing"),
+        "correctness": owned("affected-build", "correctness"),
+        "tests": owned("affected-build", "tests"),
+        "compat": owned("japicmp", "compat"),
+        "perf": owned("bench-delta", "perf"),
         "clarity": combine(clarity_parts),
         "security": score_security(rules),
         "intent": score_intent(paths, patch),
@@ -256,10 +333,12 @@ def build_verdict(results, patch, paths, workflow_text, loop, head_sha, base_sha
     if unit_test_rc != 0:
         dimensions["tests"] = score.dim(0, dimensions["tests"]["evidence"] + [f"unit tests exit {unit_test_rc}"])
 
+    risky = risky_paths(paths, patch)
+    rules.append(no_evidence_rule(dimensions, risky))
     hook = run_llm_hook(llm_enabled, llm_command, dimensions)
     document = {
-        "schema_version": 1,
-        "verdict": decide(dimensions, rules, loop),
+        "schema_version": 2,
+        "verdict": decide(dimensions, rules, loop, bool(risky)),
         "blocking": False,
         "loop": loop,
         "head_sha": head_sha,
@@ -282,7 +361,7 @@ def fallback(errors, head_sha, base_sha, loop):
     dimensions = {name: broken for name in DIMENSIONS}
     rules = [hard_rule("secrets", False, evidence)]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "verdict": "ESCALATE",
         "blocking": False,
         "loop": loop,
@@ -308,7 +387,8 @@ def summary_markdown(document):
     for name in DIMENSIONS:
         item = document["dimensions"][name]
         evidence = "; ".join(item["evidence"])
-        lines.append(f"| {name} | {item['score']} | {evidence} |")
+        shown = "n/a" if item["state"] == "not_applicable" else str(item["score"])
+        lines.append(f"| {name} | {item['state']} {shown} | {evidence} |")
     lines.extend(["", "| Hard rule | Passed | Evidence |", "|---|---|---|"])
     for rule in document["hard_rules"]:
         lines.append(f"| {rule['id']} | {str(rule['passed']).lower()} | {rule['evidence']} |")

@@ -1,0 +1,156 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "product-base",
+  "blocking": false,
+  "dimensions": {
+    "architecture": {
+      "evidence": [
+        "diff stays in the agent contract paths or the product tree",
+        "capped at 2; no structural check; the llm hook cannot raise this"
+      ],
+      "score": 2,
+      "state": "scored"
+    },
+    "clarity": {
+      "evidence": [
+        "spotless not run",
+        "java or xml changed",
+        "mvn not on PATH",
+        "comment ratio 0.00"
+      ],
+      "score": 2,
+      "state": "no_evidence"
+    },
+    "compat": {
+      "evidence": [
+        "api public or protected signature lines changed; japicmp is not bound on maven-api"
+      ],
+      "score": 2,
+      "state": "no_evidence"
+    },
+    "correctness": {
+      "evidence": [
+        "mvn not on PATH"
+      ],
+      "score": 2,
+      "state": "no_evidence"
+    },
+    "determinism": {
+      "evidence": [
+        "no added Python"
+      ],
+      "state": "not_applicable"
+    },
+    "intent": {
+      "evidence": [
+        "new actions are indexed; no banned marker added",
+        "capped at 2; no structural check; the llm hook cannot raise this"
+      ],
+      "score": 2,
+      "state": "scored"
+    },
+    "perf": {
+      "evidence": [
+        "product diff; build-speedup-bench did not run"
+      ],
+      "score": 2,
+      "state": "no_evidence"
+    },
+    "security": {
+      "evidence": [
+        "secret, contents: write, and third-party push rules passed"
+      ],
+      "score": 3,
+      "state": "scored"
+    },
+    "tests": {
+      "evidence": [
+        "mvn not on PATH"
+      ],
+      "score": 2,
+      "state": "no_evidence"
+    }
+  },
+  "hard_rules": [
+    {
+      "evidence": "no secret pattern on added lines",
+      "id": "secrets",
+      "passed": true
+    },
+    {
+      "evidence": "no added contents: write",
+      "id": "contents-write",
+      "passed": true
+    },
+    {
+      "evidence": "no push or pr create toward apache/maven",
+      "id": "third-party-push",
+      "passed": true
+    },
+    {
+      "evidence": "workflow has no contents: write and no exit 1",
+      "id": "report-only",
+      "passed": true
+    },
+    {
+      "evidence": "rubric-gate unit tests exit 0",
+      "id": "gate-unit-tests",
+      "passed": true
+    },
+    {
+      "evidence": "no_evidence on correctness, compat, perf, clarity, tests; risky paths present",
+      "id": "no-evidence-risky",
+      "passed": false
+    }
+  ],
+  "head_sha": "product-head",
+  "llm_hook": {
+    "enabled": false,
+    "notes": [],
+    "status": "disabled"
+  },
+  "loop": 0,
+  "schema_version": 2,
+  "scorers": {
+    "affected-build": {
+      "evidence": [
+        "mvn not on PATH"
+      ],
+      "status": "maven_missing"
+    },
+    "bench-delta": {
+      "evidence": [
+        "product diff; build-speedup-bench did not run"
+      ],
+      "status": "skipped"
+    },
+    "comment-density": {
+      "evidence": [
+        "comment ratio 0.00"
+      ],
+      "status": "ok"
+    },
+    "japicmp": {
+      "evidence": [
+        "api public or protected signature lines changed; japicmp is not bound on maven-api"
+      ],
+      "status": "skipped"
+    },
+    "spotless": {
+      "evidence": [
+        "spotless not run",
+        "java or xml changed",
+        "mvn not on PATH"
+      ],
+      "status": "maven_missing"
+    }
+  },
+  "tie_break": [
+    "adr",
+    "stated_priorities",
+    "existing_code_pattern",
+    "prior_verdict",
+    "simpler_reversible"
+  ],
+  "verdict": "ESCALATE"
+}

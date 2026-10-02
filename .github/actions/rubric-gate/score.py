@@ -69,7 +69,17 @@ SKIP_ARGS = ("-DskipITs", "-Drat.skip=true", "-Dcheckstyle.skip=true", "-Denforc
 
 def dim(score, evidence):
     text = evidence if isinstance(evidence, list) else [evidence]
-    return {"score": score, "evidence": text}
+    return {"state": "scored", "score": score, "evidence": text}
+
+
+def not_applicable(reason):
+    text = reason if isinstance(reason, list) else [reason]
+    return {"state": "not_applicable", "evidence": text}
+
+
+def no_evidence(reason, score=2):
+    text = reason if isinstance(reason, list) else [reason]
+    return {"state": "no_evidence", "score": min(score, 2), "evidence": text}
 
 
 def discover_modules(root):
@@ -147,15 +157,25 @@ def plan_japicmp(paths, modules):
     return {"needs_maven": True, "commands": maven_commands(selected, "verify"), "reason": "modules", "modules": selected}
 
 
+def java_xml_paths(paths):
+    return [path for path in paths if path.endswith((".java", ".xml"))]
+
+
 def plan_spotless(paths, modules):
-    java = [path for path in paths if path.endswith(".java")]
-    if not java:
-        return {"needs_maven": False, "commands": [], "reason": "no-java"}
-    selected = select_modules(java, modules)
+    targets = java_xml_paths(paths)
+    if not targets:
+        return {"needs_maven": False, "commands": [], "reason": "no-java-xml"}
+    selected = select_modules(targets, modules)
     leaves = [module for module in selected if module.count("/") >= 1]
     if not leaves:
-        return {"needs_maven": False, "commands": [], "reason": "no-module"}
-    return {"needs_maven": True, "commands": maven_commands(leaves, "spotless:check"), "reason": "java", "modules": leaves}
+        return {"needs_maven": False, "commands": [], "reason": "no-module", "targets": targets}
+    return {
+        "needs_maven": True,
+        "commands": maven_commands(leaves, "spotless:check"),
+        "reason": "java-xml",
+        "modules": leaves,
+        "targets": targets,
+    }
 
 
 def public_signature_files(paths_or_patch):
@@ -233,7 +253,7 @@ def score_comment_density(patch):
             else:
                 code += 1
     if code == 0 and comments == 0:
-        return dim(3, "no added source lines")
+        return not_applicable("no added source lines")
     ratio = comments / max(code, 1)
     if redundant:
         return dim(1, f"redundant phrases: {', '.join(redundant[:5])}")
@@ -246,29 +266,31 @@ def score_comment_density(patch):
 
 def score_format(patch):
     hits = []
+    saw_source = False
     for path, lines in sorted(added_lines_by_file(patch).items()):
         if not path.endswith(FORMAT_SUFFIXES):
             continue
+        saw_source = True
         for line in lines:
             if line.rstrip("\n").endswith((" ", "\t")):
                 hits.append(path)
                 break
+    if not saw_source:
+        return not_applicable("no added source lines for format")
     if hits:
         return dim(1, "trailing whitespace in " + ", ".join(hits[:8]))
     return dim(3, "no trailing whitespace on added source lines")
 
 
 def apply_spotless_result(heuristic, returncode, log):
-    if returncode is None:
-        return heuristic, "spotless not run"
+    base = heuristic["score"] if heuristic.get("state") == "scored" else 3
+    evidence = list(heuristic["evidence"]) if heuristic.get("state") == "scored" else []
     if returncode == 0:
-        return heuristic, "spotless:check exit 0"
+        return dim(base, evidence + ["spotless:check exit 0"]), "spotless:check exit 0"
     lowered = log.lower()
     if "format violation" in lowered or "would be reformatted" in lowered:
-        score = min(heuristic["score"], 1)
-        return dim(score, heuristic["evidence"] + ["spotless reported format violations"]), "spotless violations"
-    score = min(heuristic["score"], 2)
-    return dim(score, heuristic["evidence"] + [f"spotless:check exit {returncode}"]), "spotless exit"
+        return dim(min(base, 1), evidence + ["spotless reported format violations"]), "spotless violations"
+    return dim(min(base, 2), evidence + [f"spotless:check exit {returncode}"]), "spotless exit"
 
 
 def interpret_maven(returncode, log, goal):
@@ -305,14 +327,14 @@ def score_speedup(current, baseline=BASELINE_SPEEDUP, regression=SPEEDUP_REGRESS
 def evaluate_bench(paths, speedup, fetch_error):
     if not intersects_bench(paths):
         if product_paths(paths):
-            return dim(3, "product diff; build-speedup-bench did not run; not measured"), "skipped"
-        return dim(3, "no bench sources in the diff"), "skipped"
+            # ADR-0010
+            return no_evidence("product diff; build-speedup-bench did not run"), "skipped"
+        return not_applicable("no bench sources in the diff"), "skipped"
     if fetch_error:
-        return dim(2, fetch_error), "failed"
+        return no_evidence(fetch_error), "failed"
     if speedup is None:
-        return dim(2, "bench artifact has no warm-mvnd-speedup"), "failed"
-    scored = score_speedup(speedup)
-    return scored, "ok"
+        return no_evidence("bench artifact has no warm-mvnd-speedup"), "failed"
+    return score_speedup(speedup), "ok"
 
 
 def parse_speedup(text):
@@ -411,15 +433,15 @@ def result(scorer, status, dimensions, evidence):
 def score_affected(paths, modules, maven_runner):
     plan = plan_affected(paths, modules)
     if plan["reason"] == "root-build-file":
-        scored = dim(2, "root build file changed; Java CI runs verify; this gate does not rebuild the reactor")
-        return result("affected-build", "skipped", {"correctness": scored, "tests": scored}, plan["reason"]), plan
+        item = no_evidence("root build file changed; this gate does not rebuild the reactor")
+        return result("affected-build", "skipped", {"correctness": item, "tests": item}, item["evidence"]), plan
     if plan["reason"] == "no-product-modules":
-        scored = dim(3, "no product modules in the diff")
-        return result("affected-build", "skipped", {"correctness": scored, "tests": scored}, plan["reason"]), plan
+        item = not_applicable("no product modules in the diff")
+        return result("affected-build", "skipped", {"correctness": item, "tests": item}, item["evidence"]), plan
     returncode, log = maven_runner(plan["commands"])
     if returncode is None:
-        scored = dim(2, log)
-        body = result("affected-build", "maven_missing", {"correctness": scored, "tests": scored}, log)
+        item = no_evidence(log)
+        body = result("affected-build", "maven_missing", {"correctness": item, "tests": item}, item["evidence"])
         return body, plan
     correctness, tests, evidence = interpret_maven(returncode, log, "test")
     status = "ok" if returncode == 0 else "failed"
@@ -435,50 +457,61 @@ def score_affected(paths, modules, maven_runner):
 def score_japicmp(paths, patch, modules, maven_runner):
     plan = plan_japicmp(paths, modules)
     public = public_signature_files(patch)
-    notes = []
-    compat = 3
-    if public:
-        compat = 2
-        notes.append("api public or protected signature lines changed; japicmp is not bound on maven-api")
+    unbound = "api public or protected signature lines changed; japicmp is not bound on maven-api"
     if plan["needs_maven"]:
         returncode, log = maven_runner(plan["commands"])
         if returncode is None:
-            compat = min(compat, 2)
-            notes.append(log)
+            item = no_evidence([log, unbound] if public else log)
             status = "maven_missing"
         else:
-            score, _tests, evidence = interpret_maven(returncode, log, "verify")
-            compat = min(compat, score)
-            notes.append(evidence)
+            value, _tests, evidence = interpret_maven(returncode, log, "verify")
+            if public:
+                item = no_evidence([evidence, unbound], value)
+            else:
+                item = dim(value, evidence)
             status = "ok" if returncode == 0 else "failed"
-    else:
+    elif public:
+        item = no_evidence(unbound)
         status = "skipped"
-        if not notes:
-            notes.append("no japicmp module and no api signature line in the diff")
-    return result("japicmp", status, {"compat": dim(compat, notes)}, notes), plan
+    else:
+        item = not_applicable("no japicmp module and no api signature line in the diff")
+        status = "skipped"
+    return result("japicmp", status, {"compat": item}, item["evidence"]), plan
+
+
+def _spotless_gap(heuristic):
+    evidence = ["spotless not run", "java or xml changed"]
+    if heuristic.get("state") == "scored" and heuristic["score"] < 3:
+        return no_evidence(heuristic["evidence"] + evidence, heuristic["score"])
+    return no_evidence(evidence)
 
 
 def score_spotless(paths, patch, modules, maven_runner):
     plan = plan_spotless(paths, modules)
     heuristic = score_format(patch)
-    status = "skipped"
-    note = "spotless not run"
-    scored = heuristic
-    if plan["needs_maven"]:
-        returncode, log = maven_runner(plan["commands"])
-        if returncode is None:
-            status = "maven_missing"
-            scored = dim(min(heuristic["score"], 2), heuristic["evidence"] + [log])
-            note = log
+    if plan["reason"] == "no-java-xml":
+        if heuristic["state"] == "not_applicable":
+            item = not_applicable("no java or xml in the diff")
         else:
-            scored, note = apply_spotless_result(heuristic, returncode, log)
-            status = "ok" if returncode == 0 else "failed"
-    return result("spotless", status, {"clarity": scored}, note), plan
+            item = heuristic
+        return result("spotless", "skipped", {"clarity": item}, item["evidence"]), plan
+    if not plan["needs_maven"]:
+        item = _spotless_gap(heuristic)
+        return result("spotless", "skipped", {"clarity": item}, item["evidence"]), plan
+    returncode, log = maven_runner(plan["commands"])
+    if returncode is None:
+        item = _spotless_gap(heuristic)
+        item["evidence"].append(log)
+        return result("spotless", "maven_missing", {"clarity": item}, item["evidence"]), plan
+    item, note = apply_spotless_result(heuristic, returncode, log)
+    status = "ok" if returncode == 0 else "failed"
+    return result("spotless", status, {"clarity": item}, note), plan
 
 
 def score_comments(patch):
-    scored = score_comment_density(patch)
-    return result("comment-density", "ok", {"clarity": scored}, scored["evidence"]), {"needs_maven": False}
+    item = score_comment_density(patch)
+    status = "skipped" if item["state"] == "not_applicable" else "ok"
+    return result("comment-density", status, {"clarity": item}, item["evidence"]), {"needs_maven": False}
 
 
 def score_bench(paths, speedup, fetch_error):

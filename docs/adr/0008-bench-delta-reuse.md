@@ -25,7 +25,7 @@ under the License.
 
 ## Decision
 
-The bench-delta scorer polls `build-speedup-bench` for the same SHA only when the diff touches `.github/actions/build-speedup-bench/` or `.github/workflows/build-speedup-bench.yml`. Perf is 1 when warm speedup drops more than 15% under 3.11 (floor 2.64). Otherwise it is 3. A product diff that the bench workflow does not build scores 3 with evidence `not measured`.
+The bench-delta scorer polls `build-speedup-bench` for the same SHA only when the diff touches `.github/actions/build-speedup-bench/` or `.github/workflows/build-speedup-bench.yml`. Perf is 1 when warm speedup drops more than 15% under 3.11 (floor 2.64). Otherwise a measured run is 3. A product diff that the bench workflow does not build is `no_evidence` (ADR-0010). The poll still runs only when bench sources change.
 
 ## Options
 
@@ -37,7 +37,7 @@ The bench-delta scorer polls `build-speedup-bench` for the same SHA only when th
 
 ## Trade-off
 
-A Java change can slow the reactor without moving perf below 3. The evidence string contains `not measured`. Java CI still builds.
+A Java change can slow the reactor while this scorer has no measurement. ADR-0010 turns that gap into `no_evidence` on a risky path, which escalates. Java CI still builds.
 
 ## Revisit when
 

@@ -64,7 +64,7 @@ Full verify is `.github/workflows/maven.yml` (`./mvnw verify`), not the edit loo
 
 ## Rubric
 
-Report-only. Dimensions 0-3: correctness, intent, compat, security, perf, architecture, clarity, determinism, tests. `AUTO_MERGE_OK` when all are 3. `AUTO_FIX` when a score is 1 or 2 and `loop` is under 2. Otherwise `ESCALATE`. Hard-rule failure or a 0 escalates immediately. `blocking` is false.
+Report-only. Dimensions: correctness, intent, compat, security, perf, architecture, clarity, determinism, tests. Each is `scored` (0-3), `not_applicable` (excluded), or `no_evidence` (at most 2). `no_evidence` on a risky path is `ESCALATE`. `AUTO_MERGE_OK` when every applicable score is 3. `AUTO_FIX` when an applicable score is 1 or 2 and `loop` is under 2. Otherwise `ESCALATE`. Architecture and intent are capped at 2 until a structural check exists (ADR-0010). `blocking` is false.
 
 Procedure: `docs/agents/rubric-gate.md`.
 

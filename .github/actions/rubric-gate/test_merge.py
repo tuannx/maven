@@ -30,6 +30,49 @@ import score
 import validate
 
 
+GOLDEN = Path(__file__).with_name("testdata")
+
+
+def _gate_verdict(paths, patch, runner, head_sha, base_sha):
+    modules = ["api/maven-api-core"]
+    results = [
+        score.score_affected(paths, modules, runner)[0],
+        score.score_japicmp(paths, patch, modules, runner)[0],
+        score.score_spotless(paths, patch, modules, runner)[0],
+        score.score_comments(patch)[0],
+        score.score_bench(paths, None, None)[0],
+    ]
+    return merge.build_verdict(
+        results,
+        patch,
+        paths,
+        "name: rubric-gate\n",
+        0,
+        head_sha,
+        base_sha,
+        False,
+        "",
+        0,
+    )
+
+
+def _docs_only_verdict():
+    paths = ["docs/adr/0001-bench-is-composite-action.md", "AGENTS.md"]
+    patch = (
+        "+++ b/docs/adr/0001-bench-is-composite-action.md\n"
+        "+# title\n"
+        "+++ b/AGENTS.md\n"
+        "+# contract\n"
+    )
+    return _gate_verdict(paths, patch, lambda _commands: (0, "unused"), "docs-head", "docs-base")
+
+
+def _product_code_verdict():
+    path = "api/maven-api-core/src/main/java/org/apache/maven/api/Foo.java"
+    patch = "+++ b/" + path + "\n+    public void next() {\n+        return;\n+    }\n"
+    return _gate_verdict([path], patch, lambda _commands: (None, "mvn not on PATH"), "product-head", "product-base")
+
+
 def passed(name, evidence="ok"):
     return {"scorer": name, "status": "ok", "dimensions": {}, "evidence": [evidence]}
 
@@ -70,11 +113,17 @@ class MergeTest(unittest.TestCase):
             unit_test_rc,
         )
 
-    def test_all_threes_merge_ok(self):
+    def test_measured_threes_merge_ok(self):
+        dimensions = {name: score.dim(3, "measured") for name in merge.DIMENSIONS}
+        rules = [merge.hard_rule("secrets", True, "ok")]
+        self.assertEqual(merge.decide(dimensions, rules, 0), "AUTO_MERGE_OK")
+        self.assertEqual(merge.decide(dimensions, rules, 0, risky=True), "AUTO_MERGE_OK")
         document = self.verdict(paths=["docs/adr/0001.md", "llms.txt"])
-        self.assertEqual(document["verdict"], "AUTO_MERGE_OK")
+        self.assertEqual(document["schema_version"], 2)
         self.assertFalse(document["blocking"])
         self.assertEqual(validate.validate(document), [])
+        self.assertEqual(document["dimensions"]["architecture"]["score"], 2)
+        self.assertEqual(document["verdict"], "AUTO_FIX")
 
     def test_score_two_is_auto_fix_until_loop_two(self):
         results = all_clear_results()
@@ -124,7 +173,7 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(after["dimensions"], before["dimensions"])
         self.assertEqual(after["llm_hook"]["status"], "ok")
         self.assertIn("v0 hook cannot change scores", after["llm_hook"]["notes"])
-        self.assertEqual(after["verdict"], "AUTO_MERGE_OK")
+        self.assertEqual(after["verdict"], "AUTO_FIX")
 
     def test_hook_disabled_by_default(self):
         document = self.verdict()
@@ -141,11 +190,29 @@ class MergeTest(unittest.TestCase):
         document["blocking"] = True
         document["dimensions"]["perf"]["score"] = 3
         self.assertTrue(any("blocking" in error for error in validate.validate(document)))
+        document["blocking"] = False
+        document["dimensions"]["perf"] = score.not_applicable("no bench sources in the diff")
+        document["dimensions"]["perf"]["score"] = 3
+        self.assertTrue(any("not_applicable has score" in error for error in validate.validate(document)))
+        del document["dimensions"]["perf"]["score"]
+        self.assertEqual(validate.validate(document), [])
+        document["dimensions"]["perf"] = {
+            "state": "no_evidence",
+            "score": 3,
+            "evidence": ["bench did not run"],
+        }
+        self.assertTrue(any("no_evidence maximum" in error for error in validate.validate(document)))
 
-    def test_missing_scorer_escalates(self):
-        document = self.verdict(results=[])
-        self.assertEqual(document["verdict"], "ESCALATE")
-        self.assertEqual(document["scorers"]["affected-build"]["status"], "missing")
+    def test_missing_scorer_caps_unless_risky(self):
+        quiet = self.verdict(results=[])
+        self.assertEqual(quiet["verdict"], "AUTO_FIX")
+        self.assertEqual(quiet["scorers"]["affected-build"]["status"], "missing")
+        self.assertEqual(quiet["dimensions"]["correctness"]["state"], "no_evidence")
+        self.assertLessEqual(quiet["dimensions"]["correctness"]["score"], 2)
+        loud = self.verdict(results=[], paths=["pom.xml"])
+        self.assertEqual(loud["verdict"], "ESCALATE")
+        rule = next(item for item in loud["hard_rules"] if item["id"] == "no-evidence-risky")
+        self.assertFalse(rule["passed"])
 
     def test_determinism_allows_sleep(self):
         call = "time" + ".time()"
@@ -153,12 +220,70 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(merge.score_determinism(patch)["score"], 1)
         patch = "+++ b/tool.py\n+import time\n+time.sleep(1)\n"
         self.assertEqual(merge.score_determinism(patch)["score"], 3)
+        absent = merge.score_determinism("+++ b/docs/a.md\n+# a\n")
+        self.assertEqual(absent["state"], "not_applicable")
+        self.assertNotIn("score", absent)
 
-    def test_new_action_requires_index(self):
-        paths = [".github/actions/rubric-gate/action.yml"]
-        self.assertEqual(merge.score_intent(paths, "")["score"], 1)
-        paths.append("llms.txt")
-        self.assertEqual(merge.score_intent(paths, "")["score"], 3)
+    def test_intent_and_architecture_cap_at_two(self):
+        indexed = merge.score_intent(["llms.txt"], "")
+        self.assertEqual(indexed["score"], 2)
+        self.assertIn(merge.WEAK_CAP, indexed["evidence"])
+        self.assertIn("new actions are indexed", indexed["evidence"][0])
+        placed = merge.score_architecture(["docs/adr/0001.md"])
+        self.assertEqual(placed["score"], 2)
+        self.assertIn(merge.WEAK_CAP, placed["evidence"])
+        self.assertIn("diff stays in the agent contract paths", placed["evidence"][0])
+        missing = merge.score_intent([".github/actions/rubric-gate/action.yml"], "")
+        self.assertEqual(missing["score"], 1)
+        self.assertIn(merge.WEAK_CAP, missing["evidence"])
+
+    def test_not_applicable_is_excluded_and_risky_no_evidence_escalates(self):
+        dimensions = {name: score.dim(3, "measured") for name in merge.DIMENSIONS}
+        dimensions["perf"] = score.not_applicable("no bench sources in the diff")
+        rules = [merge.hard_rule("secrets", True, "ok")]
+        self.assertEqual(merge.decide(dimensions, rules, 0), "AUTO_MERGE_OK")
+        dimensions["clarity"] = score.no_evidence("spotless not run")
+        self.assertEqual(merge.decide(dimensions, rules, 0, risky=False), "AUTO_FIX")
+        self.assertEqual(merge.decide(dimensions, rules, 0, risky=True), "ESCALATE")
+        empty = {name: score.not_applicable("n/a") for name in merge.DIMENSIONS}
+        self.assertEqual(merge.decide(empty, rules, 0), "AUTO_FIX")
+        self.assertEqual(merge.decide(empty, rules, 2), "ESCALATE")
+
+    def test_no_evidence_on_risky_path_escalates(self):
+        results = all_clear_results()
+        results[0]["dimensions"]["correctness"] = score.no_evidence("maven did not run")
+        results[0]["dimensions"]["tests"] = score.no_evidence("maven did not run")
+        quiet = self.verdict(results, paths=["docs/adr/0001.md"])
+        self.assertEqual(quiet["verdict"], "AUTO_FIX")
+        self.assertTrue(next(item["passed"] for item in quiet["hard_rules"] if item["id"] == "no-evidence-risky"))
+        loud = self.verdict(results, paths=["api/maven-api-core/src/A.java"])
+        self.assertEqual(loud["verdict"], "ESCALATE")
+        permission = "actions:" + " write"
+        patch = "+++ b/.github/workflows/extra.yml\n+" + permission + "\n"
+        workflow = self.verdict(results, patch=patch, paths=[".github/workflows/extra.yml"])
+        self.assertEqual(workflow["verdict"], "ESCALATE")
+
+    def test_golden_docs_only_and_product_code(self):
+        docs = _docs_only_verdict()
+        self.assertEqual(docs["verdict"], "AUTO_FIX")
+        self.assertEqual(docs["dimensions"]["correctness"]["state"], "not_applicable")
+        self.assertNotIn("score", docs["dimensions"]["correctness"])
+        self.assertEqual(docs["dimensions"]["intent"]["score"], 2)
+        self.assertEqual(docs["dimensions"]["architecture"]["score"], 2)
+        self.assertIn(merge.WEAK_CAP, docs["dimensions"]["architecture"]["evidence"])
+        self.assertTrue(next(item["passed"] for item in docs["hard_rules"] if item["id"] == "no-evidence-risky"))
+        product = _product_code_verdict()
+        self.assertEqual(product["verdict"], "ESCALATE")
+        self.assertEqual(product["dimensions"]["correctness"]["state"], "no_evidence")
+        self.assertLessEqual(product["dimensions"]["correctness"]["score"], 2)
+        self.assertEqual(product["dimensions"]["compat"]["state"], "no_evidence")
+        self.assertEqual(product["dimensions"]["perf"]["state"], "no_evidence")
+        self.assertFalse(next(item["passed"] for item in product["hard_rules"] if item["id"] == "no-evidence-risky"))
+        for name, document in (("docs-only-verdict.json", docs), ("product-code-verdict.json", product)):
+            expected = json.loads((GOLDEN / name).read_text(encoding="utf-8"))
+            self.assertIn("Licensed to the Apache Software Foundation", expected.pop("$comment"))
+            self.assertEqual(document, expected)
+            self.assertEqual(validate.validate(document), [])
 
     def test_skill_mirrors(self):
         root = Path(__file__).resolve().parents[3]

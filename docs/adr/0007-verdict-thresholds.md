@@ -19,7 +19,7 @@ under the License.
 
 # ADR-0007 Verdict thresholds
 
-- status: accepted
+- status: superseded by ADR-0010
 - date: 2026-10-02
 - decided-by: prior verdict on PR #1 was `AUTO_FIX` with tests at 1 and other dimensions at 2 or 3. Tie-break order is stated in `AGENTS.md`.
 

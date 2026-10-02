@@ -21,7 +21,7 @@ under the License.
 
 Report-only composite action at `tuannx/maven/.github/actions/rubric-gate`. Writes `verdict.json`. Does not fail the step on `AUTO_FIX` or `ESCALATE`. Personal fork only. Do not open pull requests on apache/maven. Do not create tags or releases. `v0` is not a git tag.
 
-Skill: `docs/agents/rubric-gate.md`. Schema: `schema.json`. Thresholds: ADR-0007.
+Skill: `docs/agents/rubric-gate.md`. Schema: `schema.json` (`schema_version` 2). Thresholds: ADR-0010.
 
 ## Inputs
 

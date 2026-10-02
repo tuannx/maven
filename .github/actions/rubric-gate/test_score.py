@@ -53,13 +53,17 @@ class ScoreTest(unittest.TestCase):
     def test_no_product_diff_skips_maven(self):
         body, plan = score.score_affected(["docs/adr/0001.md"], ["api/maven-api-core"], lambda _commands: (0, ""))
         self.assertFalse(plan["needs_maven"])
-        self.assertEqual(body["dimensions"]["correctness"]["score"], 3)
-        self.assertEqual(body["dimensions"]["tests"]["score"], 3)
+        self.assertEqual(body["status"], "skipped")
+        self.assertEqual(body["dimensions"]["correctness"]["state"], "not_applicable")
+        self.assertNotIn("score", body["dimensions"]["correctness"])
+        self.assertEqual(body["dimensions"]["tests"]["state"], "not_applicable")
 
     def test_root_pom_does_not_rebuild_here(self):
         body, plan = score.score_affected(["pom.xml"], ["api/maven-api-core"], lambda _commands: (0, ""))
         self.assertFalse(plan["needs_maven"])
-        self.assertEqual(body["dimensions"]["correctness"]["score"], 2)
+        item = body["dimensions"]["correctness"]
+        self.assertEqual(item["state"], "no_evidence")
+        self.assertEqual(item["score"], 2)
 
     def test_api_signature_without_japicmp_scores_two(self):
         patch = (
@@ -73,8 +77,10 @@ class ScoreTest(unittest.TestCase):
             lambda _commands: (0, ""),
         )
         self.assertFalse(plan["needs_maven"])
-        self.assertEqual(body["dimensions"]["compat"]["score"], 2)
-        self.assertIn("japicmp is not bound", body["dimensions"]["compat"]["evidence"][0])
+        item = body["dimensions"]["compat"]
+        self.assertEqual(item["state"], "no_evidence")
+        self.assertLessEqual(item["score"], 2)
+        self.assertIn("japicmp is not bound", item["evidence"][0])
 
     def test_clean_density_and_redundant_phrase(self):
         clean = "+++ b/Example.java\n+class Example {\n+    void run() {}\n+}\n"
@@ -106,8 +112,15 @@ class ScoreTest(unittest.TestCase):
     def test_product_diff_does_not_wait_for_bench(self):
         scored, status = score.evaluate_bench(["api/maven-api-core/src/main/java/A.java"], None, None)
         self.assertEqual(status, "skipped")
-        self.assertEqual(scored["score"], 3)
-        self.assertIn("not measured", scored["evidence"][0])
+        self.assertEqual(scored["state"], "no_evidence")
+        self.assertLessEqual(scored["score"], 2)
+        self.assertIn("did not run", scored["evidence"][0])
+
+    def test_docs_diff_bench_is_not_applicable(self):
+        scored, status = score.evaluate_bench(["docs/adr/0001.md"], None, None)
+        self.assertEqual(status, "skipped")
+        self.assertEqual(scored["state"], "not_applicable")
+        self.assertNotIn("score", scored)
 
     def test_bench_source_uses_fetched_speedup(self):
         path = ".github/actions/build-speedup-bench/run-bench.sh"
@@ -115,7 +128,9 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(status, "ok")
         self.assertEqual(scored["score"], 3)
         scored, status = score.evaluate_bench([path], None, "bench run not found")
+        self.assertEqual(scored["state"], "no_evidence")
         self.assertEqual(scored["score"], 2)
+        self.assertEqual(status, "failed")
 
     def test_parse_speedup_and_newest_run(self):
         self.assertEqual(score.parse_speedup("warm-mvnd-speedup=3.11\n"), 3.11)
@@ -147,6 +162,54 @@ def _zip_with_output(text):
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("build-speedup-bench-logs/github_output.txt", text)
     return buffer.getvalue()
+
+
+class ApplicabilityTest(unittest.TestCase):
+    def test_empty_density_and_format_are_not_applicable(self):
+        patch = "+++ b/README.md\n+# title\n"
+        density = score.score_comment_density(patch)
+        self.assertEqual(density["state"], "not_applicable")
+        self.assertNotIn("score", density)
+        formatted = score.score_format(patch)
+        self.assertEqual(formatted["state"], "not_applicable")
+        self.assertNotIn("score", formatted)
+
+    def test_japicmp_without_signature_is_not_applicable(self):
+        body, plan = score.score_japicmp(["docs/a.md"], "", ["api/maven-api-core"], lambda _commands: (0, ""))
+        self.assertFalse(plan["needs_maven"])
+        self.assertEqual(body["dimensions"]["compat"]["state"], "not_applicable")
+        self.assertNotIn("score", body["dimensions"]["compat"])
+
+    def test_maven_missing_on_product_is_no_evidence(self):
+        path = "api/maven-api-core/src/main/java/A.java"
+        body, plan = score.score_affected([path], ["api/maven-api-core"], lambda _commands: (None, "mvn not on PATH"))
+        self.assertTrue(plan["needs_maven"])
+        item = body["dimensions"]["correctness"]
+        self.assertEqual(body["status"], "maven_missing")
+        self.assertEqual(item["state"], "no_evidence")
+        self.assertLessEqual(item["score"], 2)
+
+    def test_spotless_skipped_on_java_is_no_evidence(self):
+        path = "api/maven-api-core/src/main/java/A.java"
+        patch = "+++ b/" + path + "\n+int a; \n"
+        body, _plan = score.score_spotless([path], patch, ["api/maven-api-core"], lambda _commands: (None, "mvn not on PATH"))
+        item = body["dimensions"]["clarity"]
+        self.assertEqual(item["state"], "no_evidence")
+        self.assertEqual(item["score"], 1)
+        self.assertIn("spotless not run", item["evidence"])
+
+    def test_no_java_xml_without_source_is_not_applicable(self):
+        body, plan = score.score_spotless(["docs/a.md"], "+++ b/docs/a.md\n+# a\n", [], lambda _commands: (0, ""))
+        self.assertEqual(plan["reason"], "no-java-xml")
+        item = body["dimensions"]["clarity"]
+        self.assertEqual(item["state"], "not_applicable")
+        self.assertNotIn("score", item)
+
+    def test_python_whitespace_stays_scored_without_java(self):
+        body, _plan = score.score_spotless(["tool.py"], "+++ b/tool.py\n+value = 1\n", [], lambda _commands: (0, ""))
+        item = body["dimensions"]["clarity"]
+        self.assertEqual(item["state"], "scored")
+        self.assertEqual(item["score"], 3)
 
 
 class DiscoverTmpTest(unittest.TestCase):

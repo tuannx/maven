@@ -18,7 +18,7 @@
     "llm_hook"
   ],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "verdict": {"enum": ["AUTO_MERGE_OK", "AUTO_FIX", "ESCALATE"]},
     "blocking": {"const": false},
     "loop": {"type": "integer", "minimum": 0},
@@ -46,11 +46,12 @@
     "llm_hook": {"$ref": "#/$defs/llmHook"}
   },
   "$defs": {
-    "score": {
+    "dimension": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["score", "evidence"],
+      "required": ["state", "evidence"],
       "properties": {
+        "state": {"enum": ["scored", "not_applicable", "no_evidence"]},
         "score": {"type": "integer", "minimum": 0, "maximum": 3},
         "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}}
       }
@@ -70,15 +71,15 @@
         "tests"
       ],
       "properties": {
-        "correctness": {"$ref": "#/$defs/score"},
-        "intent": {"$ref": "#/$defs/score"},
-        "compat": {"$ref": "#/$defs/score"},
-        "security": {"$ref": "#/$defs/score"},
-        "perf": {"$ref": "#/$defs/score"},
-        "architecture": {"$ref": "#/$defs/score"},
-        "clarity": {"$ref": "#/$defs/score"},
-        "determinism": {"$ref": "#/$defs/score"},
-        "tests": {"$ref": "#/$defs/score"}
+        "correctness": {"$ref": "#/$defs/dimension"},
+        "intent": {"$ref": "#/$defs/dimension"},
+        "compat": {"$ref": "#/$defs/dimension"},
+        "security": {"$ref": "#/$defs/dimension"},
+        "perf": {"$ref": "#/$defs/dimension"},
+        "architecture": {"$ref": "#/$defs/dimension"},
+        "clarity": {"$ref": "#/$defs/dimension"},
+        "determinism": {"$ref": "#/$defs/dimension"},
+        "tests": {"$ref": "#/$defs/dimension"}
       }
     },
     "hardRule": {
