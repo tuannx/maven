@@ -24,16 +24,16 @@ under the License.
 
 # rubric-gate
 
-Report-only review. v0 does not fail the GitHub check. Normative schema: `.github/actions/rubric-gate/schema.json`. Thresholds: ADR-0010. Bench reuse: ADR-0008.
+Report-only review. v0 does not fail the GitHub check. Normative schema: `.github/actions/rubric-gate/schema.json`. Thresholds: ADR-0010 and ADR-0011. Bench reuse: ADR-0008. Boundaries: `docs/adr/boundaries.yml`.
 
 ## Run
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/actions/rubric-gate -p 'test_*.py'
-python3 .github/actions/rubric-gate/cli.py all --base origin/<base> --out rubric-gate-results
+python3 .github/actions/rubric-gate/cli.py all --base origin/<base> --out rubric-gate-results --pr-body-file pr-body.txt
 ```
 
-Set `RUBRIC_GATE_FETCH_BENCH=never` to skip the GitHub poll. Read `rubric-gate-results/verdict.json`.
+`pr-body.txt` is the pull request body. It needs one line `scope: agent-contract` (comma-separate groups from `docs/adr/boundaries.yml`). Set `RUBRIC_GATE_FETCH_BENCH=never` to skip the GitHub poll. Read `rubric-gate-results/verdict.json`.
 
 ## Dimensions
 
@@ -59,8 +59,8 @@ Each dimension has `state` and a non-empty evidence array. Only `scored` and `no
 | clarity | minimum of the applicable spotless and comment-density parts. Java or XML changed and `spotless:check` did not run: `no_evidence`. No added source lines: `not_applicable` |
 | perf | bench-delta. No bench sources and no product path: `not_applicable`. Product path and the bench did not run: `no_evidence`. ADR-0008 still reuses the dogfood run when bench sources change |
 | security | hard rules below. A failed security rule scores 0 |
-| intent | index and banned-marker check, capped at 2 (ADR-0010). 1 when `action.yml` is added and no `llms.txt` is in the diff, or when an added line contains a banned marker (`score_intent`) |
-| architecture | path prefix check, capped at 2 (ADR-0010). Evidence names the cap. 2 when a path is outside the product tree and outside `docs/`, `.cursor/`, `.github/`, `.mvn/`, `AGENTS.md`, `llms.txt`. New actions only under `build-speedup-bench` or `rubric-gate` |
+| intent | ADR-0011. 3 when the pull request body has `scope:` and every changed path is in a named group. 1 when the line is missing, names an unknown group, or leaves a path out. `no_evidence` when the body was not supplied |
+| architecture | ADR-0011. 3 when the boundaries checks for the touched groups pass, with those checks cited. 1 names the failing item to fix. `no_evidence` when `boundaries.yml` is missing, a path is in no group, or a module pom cannot be parsed |
 | determinism | No added Python: `not_applicable`. 1 when added Python calls `random.`, `datetime.now(`, or `time.time(`. `time.sleep` is allowed |
 
 Comment-density uses added lines of `.py`, `.java`, `.sh`, `.yml`, `.yaml` after the leading header. Redundant phrases: `this function`, `this method`, `note that`, `it is important`, `please note`. Ratio above 0.45 or any redundant phrase scores 1. Ratio above 0.25 scores 2.
@@ -81,21 +81,22 @@ Any failure yields `ESCALATE`.
 | report-only | `.github/workflows/rubric-gate.yml` grants `contents: write` or a line is `exit 1` |
 | gate-unit-tests | rubric-gate unit tests exit non-zero |
 | no-evidence-risky | a dimension is `no_evidence` and the diff has a risky path |
+| structure-measured | architecture or intent is not `scored` |
 
 ## Thresholds
 
-`not_applicable` is excluded. ADR-0007 is superseded by ADR-0010.
+`not_applicable` is excluded. ADR-0007 is superseded by ADR-0010. The architecture and intent cap in ADR-0010 is superseded by ADR-0011.
 
 | condition | verdict |
 |---|---|
-| any hard rule failed, any applicable score is 0, or `no_evidence` on a risky path | `ESCALATE` |
+| any hard rule failed, any applicable score is 0, `no_evidence` on a risky path, or architecture or intent is not `scored` | `ESCALATE` |
 | every applicable score is 3 | `AUTO_MERGE_OK` |
 | an applicable score is 1 or 2, and `loop` is 0 or 1 | `AUTO_FIX` |
 | an applicable score is 1 or 2, and `loop` is 2 or more | `ESCALATE` |
 | no applicable dimension, and `loop` is 0 or 1 | `AUTO_FIX` |
 | no applicable dimension, and `loop` is 2 or more | `ESCALATE` |
 
-Architecture and intent are scored and capped at 2, so `AUTO_MERGE_OK` waits on a structural check this gate does not run. `blocking` is always false. `loop` is the number of `AUTO_FIX` attempts already consumed. Maximum fix loops: 2.
+`blocking` is always false. `loop` is the number of `AUTO_FIX` attempts already consumed. Maximum fix loops: 2.
 
 ## Tie-break
 

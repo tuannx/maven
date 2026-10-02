@@ -23,6 +23,10 @@ under the License.
 - date: 2026-10-02
 - decided-by: ADR-0001 and ADR-0003. Baseline warm speedup 3.11 is dogfood run 36996291340. The earlier run on the same reactor was 3.16.
 
+## Context
+
+The bench workflow already times the reactor when its own sources change.
+
 ## Decision
 
 The bench-delta scorer polls `build-speedup-bench` for the same SHA only when the diff touches `.github/actions/build-speedup-bench/` or `.github/workflows/build-speedup-bench.yml`. Perf is 1 when warm speedup drops more than 15% under 3.11 (floor 2.64). Otherwise a measured run is 3. A product diff that the bench workflow does not build is `no_evidence` (ADR-0010). The poll still runs only when bench sources change.

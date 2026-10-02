@@ -23,6 +23,10 @@ under the License.
 - date: 2026-10-02
 - decided-by: this change. Java CI (`.github/workflows/maven.yml`) stays the blocking verify. The bench stays non-failing on ratio (ADR-0003).
 
+## Context
+
+Java CI already fails the build. A second failing check would duplicate it.
+
 ## Decision
 
 `.github/actions/rubric-gate` writes `verdict.json` and a job summary. `blocking` is false. Scorer steps and the merge step exit 0 for `AUTO_FIX` and `ESCALATE`. An optional LLM hook is off unless `llm-hook` is true, and its notes cannot change scores.

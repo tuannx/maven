@@ -23,6 +23,10 @@ under the License.
 - date: 2026-10-02
 - decided-by: PR #1 review. Public bench snippet is `contents: read`. Dogfood adds `actions: write` only for step `Upload timing logs`.
 
+## Context
+
+The bench uploads logs. A workflow token that can push is wider than that step.
+
 ## Decision
 
 Default token scope is `contents: read`. `actions: write` is granted only on jobs that upload an artifact, and the job comment names that step. `pull-requests: write` is granted only when `sticky-comment` is true, for step `Update sticky pull request comment`. `contents: write` is not used.

@@ -23,6 +23,10 @@ under the License.
 - date: YYYY-MM-DD
 - decided-by: name the artifact, run, or prior ADR
 
+## Context
+
+The constraint that forced a decision.
+
 ## Decision
 
 One sentence.

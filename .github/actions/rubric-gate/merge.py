@@ -27,6 +27,7 @@ import shlex
 import subprocess
 
 import score
+import structure
 import validate
 
 DIMENSIONS = (
@@ -48,7 +49,6 @@ TIE_BREAK = (
     "simpler_reversible",
 )
 HARD_RULES = ("secrets", "contents-write", "third-party-push", "report-only", "gate-unit-tests")
-ACTION_DIRS = ("build-speedup-bench", "rubric-gate")
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"ghp_[A-Za-z0-9]{20,}"),
@@ -113,59 +113,20 @@ def score_security(rules):
     return score.dim(3, "secret, contents: write, and third-party push rules passed")
 
 
-WEAK_CAP = "capped at 2; no structural check; the llm hook cannot raise this"
 WRITE_PERMISSION = re.compile(
     r"(?i)(contents|actions|pull-requests|checks|packages|security-events|id-token):\s*write"
 )
 
 
-def cap_weak(item):
-    evidence = list(item["evidence"])
-    if WEAK_CAP not in evidence:
-        evidence.append(WEAK_CAP)
-    return score.dim(min(item["score"], 2), evidence)
+def score_intent(paths, pr_body, root):
+    loaded = structure.load_boundaries(root)
+    if isinstance(loaded, str):
+        return score.no_evidence(loaded)
+    return structure.score_intent(paths, pr_body, loaded["path_groups"])
 
 
-def score_intent(paths, patch):
-    new_action = any(path.startswith(".github/actions/") and path.endswith("/action.yml") for path in paths)
-    indexed = any(path == "llms.txt" or path.endswith("/llms.txt") for path in paths)
-    if new_action and not indexed:
-        found = score.dim(1, "action.yml added and no llms.txt in the diff")
-    else:
-        found = None
-        fix_marker = "FIX" + "ME"
-        triple = "XX" + "X"
-        for path, lines in added_by_file(patch).items():
-            for line in lines:
-                if fix_marker in line or triple in line:
-                    found = score.dim(1, f"banned marker added in {path}")
-                    break
-            if found:
-                break
-        if found is None:
-            found = score.dim(2, "new actions are indexed; no banned marker added")
-    return cap_weak(found)
-
-
-def score_architecture(paths):
-    outliers = []
-    for path in paths:
-        if path.startswith(".github/actions/"):
-            parts = path.split("/")
-            name = parts[2] if len(parts) > 2 else ""
-            if name not in ACTION_DIRS:
-                outliers.append(path)
-        elif path in {"AGENTS.md", "llms.txt", "pom.xml"}:
-            continue
-        elif path.startswith(("docs/", ".cursor/", ".github/", ".mvn/", "api/", "impl/", "compat/", "apache-maven/", "its/")):
-            continue
-        else:
-            outliers.append(path)
-    if outliers:
-        found = score.dim(2, "paths outside the agent and product trees: " + ", ".join(sorted(outliers)[:8]))
-    else:
-        found = score.dim(2, "diff stays in the agent contract paths or the product tree")
-    return cap_weak(found)
+def score_architecture(root, paths):
+    return structure.score_architecture(root, paths)
 
 
 def score_determinism(patch):
@@ -217,6 +178,9 @@ def combine(parts):
 def decide(dimensions, rules, loop, risky=False):
     if any(not rule["passed"] for rule in rules):
         return "ESCALATE"
+    for name in ("architecture", "intent"):
+        if dimensions[name]["state"] != "scored":
+            return "ESCALATE"
     applicable = []
     for name in DIMENSIONS:
         item = dimensions[name]
@@ -290,7 +254,27 @@ def run_llm_hook(enabled, command, dimensions):
     return {"enabled": True, "status": "ok", "notes": cleaned}
 
 
-def build_verdict(results, patch, paths, workflow_text, loop, head_sha, base_sha, llm_enabled, llm_command, unit_test_rc):
+def structure_measured_rule(dimensions):
+    blind = [name for name in ("architecture", "intent") if dimensions[name]["state"] != "scored"]
+    if blind:
+        return hard_rule("structure-measured", False, "cannot measure " + ", ".join(blind))
+    return hard_rule("structure-measured", True, "architecture and intent are scored")
+
+
+def build_verdict(
+    results,
+    patch,
+    paths,
+    workflow_text,
+    loop,
+    head_sha,
+    base_sha,
+    llm_enabled,
+    llm_command,
+    unit_test_rc,
+    root=".",
+    pr_body=None,
+):
     by_name = {body["scorer"]: body for body in results}
     for name in score.SCORERS:
         by_name.setdefault(name, missing_scorer(name))
@@ -326,8 +310,8 @@ def build_verdict(results, patch, paths, workflow_text, loop, head_sha, base_sha
         "perf": owned("bench-delta", "perf"),
         "clarity": combine(clarity_parts),
         "security": score_security(rules),
-        "intent": score_intent(paths, patch),
-        "architecture": score_architecture(paths),
+        "intent": score_intent(paths, pr_body, root),
+        "architecture": score_architecture(root, paths),
         "determinism": score_determinism(patch),
     }
     if unit_test_rc != 0:
@@ -335,6 +319,7 @@ def build_verdict(results, patch, paths, workflow_text, loop, head_sha, base_sha
 
     risky = risky_paths(paths, patch)
     rules.append(no_evidence_rule(dimensions, risky))
+    rules.append(structure_measured_rule(dimensions))
     hook = run_llm_hook(llm_enabled, llm_command, dimensions)
     document = {
         "schema_version": 2,

@@ -5,10 +5,9 @@
   "dimensions": {
     "architecture": {
       "evidence": [
-        "diff stays in the agent contract paths or the product tree",
-        "capped at 2; no structural check; the llm hook cannot raise this"
+        "reactor dependencies stay inside dependency_direction (api/maven-api-core/pom.xml)"
       ],
-      "score": 2,
+      "score": 3,
       "state": "scored"
     },
     "clarity": {
@@ -43,10 +42,9 @@
     },
     "intent": {
       "evidence": [
-        "new actions are indexed; no banned marker added",
-        "capped at 2; no structural check; the llm hook cannot raise this"
+        "scope product covers 1 paths"
       ],
-      "score": 2,
+      "score": 3,
       "state": "scored"
     },
     "perf": {
@@ -101,6 +99,11 @@
       "evidence": "no_evidence on correctness, compat, perf, clarity, tests; risky paths present",
       "id": "no-evidence-risky",
       "passed": false
+    },
+    {
+      "evidence": "architecture and intent are scored",
+      "id": "structure-measured",
+      "passed": true
     }
   ],
   "head_sha": "product-head",

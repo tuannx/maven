@@ -23,6 +23,10 @@ under the License.
 - date: 2026-10-02
 - decided-by: ADR-0001. Run 36996291340 exited 0 with warm speedup 3.11. The bench emits `::warning::` when warm mvnd is not faster than mvn.
 
+## Context
+
+Wall-clock on a shared runner moves between runs even when the reactor did not.
+
 ## Decision
 
 The bench job exits 0 when the builds exit 0. A ratio below a laptop run is a warning, not a failure.

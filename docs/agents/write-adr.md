@@ -22,7 +22,7 @@ under the License.
 Record a non-trivial decision before the code that depends on it.
 
 1. Copy `docs/adr/template.md` to `docs/adr/NNNN-slug.md`. `NNNN` is one greater than the highest existing number.
-2. Fill `status`, `date`, `decided-by`, `Decision`, `Options`, `Trade-off`, `Revisit when`.
+2. Fill `status`, `date`, `decided-by`, `Context`, `Decision`, `Options`, `Trade-off`, `Revisit when`.
 3. Score each option 0-3 for fit to determinism, least privilege, reversibility, and agent speed.
 4. Near-tie order: ADR, stated priorities, existing code pattern, prior verdict, simpler or reversible.
 5. Point a code comment at the ADR only when the why is not obvious from the name. Do not restate the ADR in the comment.

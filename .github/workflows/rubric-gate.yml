@@ -326,6 +326,15 @@ jobs:
           path: rubric-gate-results
           merge-multiple: true
 
+      - name: Record pull request body
+        if: always()
+        shell: bash
+        env:
+          PR_BODY: ${{ toJson(github.event.pull_request.body) }}
+        run: |
+          mkdir -p rubric-gate-results
+          python3 -c 'import json,os,pathlib; raw=os.environ.get("PR_BODY") or "null"; text=json.loads(raw) or ""; pathlib.Path("rubric-gate-results/pr-body.txt").write_text(text)'
+
       - name: Merge verdict
         if: always()
         uses: ./.github/actions/rubric-gate

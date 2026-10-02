@@ -131,6 +131,17 @@ def load_results(out_dir):
     return bodies
 
 
+def pr_body_text(args):
+    if args.pr_body_file:
+        return Path(args.pr_body_file).read_text(encoding="utf-8")
+    default = Path(args.out) / "pr-body.txt"
+    if default.is_file():
+        return default.read_text(encoding="utf-8")
+    if args.pr_body is not None:
+        return args.pr_body
+    return None
+
+
 def command_merge(args, paths, patch):
     root = Path(args.root)
     out_dir = Path(args.out)
@@ -148,6 +159,8 @@ def command_merge(args, paths, patch):
         enabled,
         args.llm_hook_command,
         args.unit_test_rc,
+        root,
+        pr_body_text(args),
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     verdict_path = out_dir / "verdict.json"
@@ -174,6 +187,8 @@ def main(argv):
     parser.add_argument("--llm-hook", default="false")
     parser.add_argument("--llm-hook-command", default="")
     parser.add_argument("--unit-test-rc", type=int, default=0)
+    parser.add_argument("--pr-body", default=None)
+    parser.add_argument("--pr-body-file", default="")
     args = parser.parse_args(argv)
     root = Path(args.root)
     if not args.base:

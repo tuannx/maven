@@ -1,0 +1,68 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership. The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+# ADR-0011. Path groups and the reactor direction the rubric gate checks.
+
+path_groups:
+  agent-contract:
+    - AGENTS.md
+    - llms.txt
+    - docs/adr/
+    - docs/agents/
+    - .cursor/skills/
+  ci:
+    - .github/
+  product:
+    - api/
+    - impl/
+    - compat/
+    - apache-maven/
+    - pom.xml
+    - .mvn/
+
+# Reactor tree of the depender, then trees it may depend on.
+# api has no outward reactor edge. Nothing depends on the distribution tree.
+dependency_direction:
+  api:
+    - api
+  impl:
+    - api
+    - impl
+    - compat
+  compat:
+    - api
+    - impl
+    - compat
+  apache-maven:
+    - api
+    - impl
+    - compat
+    - apache-maven
+
+# A changed workflow may grant scope: write only when the file also contains a marker.
+# contents: write is absent here, so it fails the check. ADR-0005.
+least_privilege:
+  actions:
+    - actions/upload-artifact
+    - Upload timing logs
+  pull-requests:
+    - Update sticky pull request comment
+
+# Named by the contract and required to stay absent. ADR-0002.
+absent_on_purpose:
+  - .mvn/extensions.xml
+  - .mvn/maven-build-cache-config.xml

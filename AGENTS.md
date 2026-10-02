@@ -32,7 +32,7 @@ Binding on every added file:
 - Names carry meaning.
 - Comments only for a non-obvious why.
 - Architecture holds at each step.
-- Non-trivial decisions go to `docs/adr/` with options, scores, decided-by, trade-off, revisit-when.
+- Non-trivial decisions go to `docs/adr/` with context, options, decision, decided-by, trade-off, and revisit-when.
 - Near-tie order: ADR, stated priorities, existing code pattern, prior verdict, simpler or reversible.
 
 ## Build
@@ -64,13 +64,13 @@ Full verify is `.github/workflows/maven.yml` (`./mvnw verify`), not the edit loo
 
 ## Rubric
 
-Report-only. Dimensions: correctness, intent, compat, security, perf, architecture, clarity, determinism, tests. Each is `scored` (0-3), `not_applicable` (excluded), or `no_evidence` (at most 2). `no_evidence` on a risky path is `ESCALATE`. `AUTO_MERGE_OK` when every applicable score is 3. `AUTO_FIX` when an applicable score is 1 or 2 and `loop` is under 2. Otherwise `ESCALATE`. Architecture and intent are capped at 2 until a structural check exists (ADR-0010). `blocking` is false.
+Report-only. Dimensions: correctness, intent, compat, security, perf, architecture, clarity, determinism, tests. Each is `scored` (0-3), `not_applicable` (excluded), or `no_evidence` (at most 2). `no_evidence` on a risky path is `ESCALATE`. Unmeasured architecture or intent is `ESCALATE`. `AUTO_MERGE_OK` when every applicable score is 3. `AUTO_FIX` when an applicable score is 1 or 2 and `loop` is under 2. Otherwise `ESCALATE`. Architecture and intent are measured from `docs/adr/boundaries.yml` (ADR-0011). `blocking` is false.
 
 Procedure: `docs/agents/rubric-gate.md`.
 
 ## ADR
 
-Next file: `docs/adr/NNNN-slug.md` from `docs/adr/template.md`, before the code that depends on it. Procedure: `docs/agents/write-adr.md`.
+The next ADR goes in `docs/adr/` and copies `docs/adr/template.md`, before the code that depends on it. Procedure: `docs/agents/write-adr.md`.
 
 ## Security
 

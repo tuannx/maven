@@ -23,6 +23,10 @@ under the License.
 - date: 2026-10-02
 - decided-by: root `llms.txt` indexes this fork. Action contracts stay next to each action. `AGENTS.md` is the coding-agent entry point.
 
+## Context
+
+Agents need one index and one contract, and each action needs its own contract beside the code.
+
 ## Decision
 
 Machines read `AGENTS.md` first, then root `llms.txt` for the index, then the action `llms.txt` for inputs and outputs. Human notes stay in each action `README.md`.

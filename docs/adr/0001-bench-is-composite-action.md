@@ -23,6 +23,10 @@ under the License.
 - date: 2026-10-02
 - decided-by: `.github/actions/build-speedup-bench` on PR #1. Dogfood run [36996291340](https://github.com/tuannx/maven/actions/runs/36996291340).
 
+## Context
+
+Callers need the same timing run the dogfood workflow already performs.
+
 ## Decision
 
 Wall-clock measurement is a composite action callers invoke with `uses`, dogfooded by `.github/workflows/build-speedup-bench.yml` on `api/pom.xml`.

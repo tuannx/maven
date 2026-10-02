@@ -23,6 +23,10 @@ under the License.
 - date: 2026-10-02
 - decided-by: ADR-0001. Cache templates live in the action directory and are copied into `.mvn/` only for the `build-cache` scenario, then deleted.
 
+## Context
+
+A committed cache extension would change every later build, including the bench baseline.
+
 ## Decision
 
 `maven-build-cache-extension` 1.2.0 is not committed as a live `.mvn` extension. The bench enables it after the mvn and mvnd baselines and removes it before exit.

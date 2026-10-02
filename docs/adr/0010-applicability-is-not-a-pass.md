@@ -19,13 +19,17 @@ under the License.
 
 # ADR-0010 Applicability is not a pass
 
-- status: accepted
+- status: accepted; the cap at 2 is superseded by ADR-0011
 - date: 2026-10-02
 - decided-by: meta-review of PR #2. Run 36997986388 returned `AUTO_MERGE_OK` because skipped scorers and path heuristics scored 3. Supersedes ADR-0007. Supersedes the unmeasured-product score in ADR-0008. Bench reuse in ADR-0008 stays.
 
+## Context
+
+Run 36997986388 scored a skipped scorer as 3 and returned `AUTO_MERGE_OK`.
+
 ## Decision
 
-A dimension is `scored` (0-3), `not_applicable`, or `no_evidence`. `not_applicable` has no score and is left out of the threshold; its evidence is a path classification. `no_evidence` scores at most 2. On a risky path it fails hard rule `no-evidence-risky` and the verdict is `ESCALATE`. Risky paths are product trees (`api/`, `impl/`, `compat/`, `apache-maven/`), build config (`pom.xml`, `.mvn/`, any `pom.xml`), and a workflow whose added lines grant `contents`, `actions`, `pull-requests`, `checks`, `packages`, `security-events`, or `id-token` `write`. Spotless not run on changed Java or XML is `no_evidence`. Architecture and intent stay at most 2 until a structural check exists; the evidence says so. The LLM hook still cannot raise a score.
+A dimension is `scored` (0-3), `not_applicable`, or `no_evidence`. `not_applicable` has no score and is left out of the threshold; its evidence is a path classification. `no_evidence` scores at most 2. On a risky path it fails hard rule `no-evidence-risky` and the verdict is `ESCALATE`. Risky paths are product trees (`api/`, `impl/`, `compat/`, `apache-maven/`), build config (`pom.xml`, `.mvn/`, any `pom.xml`), and a workflow whose added lines grant `contents`, `actions`, `pull-requests`, `checks`, `packages`, `security-events`, or `id-token` `write`. Spotless not run on changed Java or XML is `no_evidence`. ADR-0011 measures architecture and intent, and this ADR no longer caps them. The LLM hook still cannot raise a score.
 
 ## Options
 
@@ -37,7 +41,7 @@ A dimension is `scored` (0-3), `not_applicable`, or `no_evidence`. `not_applicab
 
 ## Trade-off
 
-`AUTO_MERGE_OK` needs every applicable score at 3. Architecture and intent are always scored and capped, so that verdict waits on a structural check. A docs-only diff is `AUTO_FIX`. A product diff whose Maven, spotless, japicmp, or bench scorer did not run is `ESCALATE`.
+`AUTO_MERGE_OK` needs every applicable score at 3. A product diff whose Maven, spotless, japicmp, or bench scorer did not run is `ESCALATE` when the path is risky. The cap that made `AUTO_MERGE_OK` unreachable is ADR-0011's problem, not this one.
 
 ## Revisit when
 

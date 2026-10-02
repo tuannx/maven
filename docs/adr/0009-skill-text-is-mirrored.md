@@ -23,6 +23,10 @@ under the License.
 - date: 2026-10-02
 - decided-by: ADR-0004. Cursor loads `.cursor/skills/*/SKILL.md` only when frontmatter is the first bytes. Other agents read `docs/agents/`.
 
+## Context
+
+Cursor reads frontmatter skills. Other agents read plain markdown. The two copies can drift.
+
 ## Decision
 
 `docs/agents/<name>.md` is the body. `.cursor/skills/<name>/SKILL.md` is YAML frontmatter plus that body. `test_skill_mirrors` fails when they differ.

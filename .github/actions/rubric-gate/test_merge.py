@@ -33,7 +33,11 @@ import validate
 GOLDEN = Path(__file__).with_name("testdata")
 
 
-def _gate_verdict(paths, patch, runner, head_sha, base_sha):
+ROOT = Path(__file__).resolve().parents[3]
+SCOPE = "scope: agent-contract, ci, product\n"
+
+
+def _gate_verdict(paths, patch, runner, head_sha, base_sha, pr_body):
     modules = ["api/maven-api-core"]
     results = [
         score.score_affected(paths, modules, runner)[0],
@@ -53,6 +57,8 @@ def _gate_verdict(paths, patch, runner, head_sha, base_sha):
         False,
         "",
         0,
+        ROOT,
+        pr_body,
     )
 
 
@@ -64,13 +70,27 @@ def _docs_only_verdict():
         "+++ b/AGENTS.md\n"
         "+# contract\n"
     )
-    return _gate_verdict(paths, patch, lambda _commands: (0, "unused"), "docs-head", "docs-base")
+    return _gate_verdict(
+        paths,
+        patch,
+        lambda _commands: (0, "unused"),
+        "docs-head",
+        "docs-base",
+        "scope: agent-contract\n",
+    )
 
 
 def _product_code_verdict():
     path = "api/maven-api-core/src/main/java/org/apache/maven/api/Foo.java"
     patch = "+++ b/" + path + "\n+    public void next() {\n+        return;\n+    }\n"
-    return _gate_verdict([path], patch, lambda _commands: (None, "mvn not on PATH"), "product-head", "product-base")
+    return _gate_verdict(
+        [path],
+        patch,
+        lambda _commands: (None, "mvn not on PATH"),
+        "product-head",
+        "product-base",
+        "scope: product\n",
+    )
 
 
 def passed(name, evidence="ok"):
@@ -99,11 +119,12 @@ def all_clear_results():
 
 
 class MergeTest(unittest.TestCase):
-    def verdict(self, results=None, patch="", paths=None, loop=0, workflow="name: rubric-gate\n", unit_test_rc=0, llm=False, command=""):
+    def verdict(self, results=None, patch="", paths=None, loop=0, workflow="name: rubric-gate\n", unit_test_rc=0, llm=False, command="", pr_body=SCOPE):
+        chosen = ["docs/adr/template.md"] if paths is None else paths
         return merge.build_verdict(
             results if results is not None else all_clear_results(),
             patch,
-            [] if paths is None else paths,
+            chosen,
             workflow,
             loop,
             "head",
@@ -111,6 +132,8 @@ class MergeTest(unittest.TestCase):
             llm,
             command,
             unit_test_rc,
+            ROOT,
+            pr_body,
         )
 
     def test_measured_threes_merge_ok(self):
@@ -122,8 +145,9 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(document["schema_version"], 2)
         self.assertFalse(document["blocking"])
         self.assertEqual(validate.validate(document), [])
-        self.assertEqual(document["dimensions"]["architecture"]["score"], 2)
-        self.assertEqual(document["verdict"], "AUTO_FIX")
+        self.assertEqual(document["dimensions"]["architecture"]["score"], 3)
+        self.assertEqual(document["dimensions"]["intent"]["score"], 3)
+        self.assertEqual(document["verdict"], "AUTO_MERGE_OK")
 
     def test_score_two_is_auto_fix_until_loop_two(self):
         results = all_clear_results()
@@ -173,7 +197,7 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(after["dimensions"], before["dimensions"])
         self.assertEqual(after["llm_hook"]["status"], "ok")
         self.assertIn("v0 hook cannot change scores", after["llm_hook"]["notes"])
-        self.assertEqual(after["verdict"], "AUTO_FIX")
+        self.assertEqual(after["verdict"], "AUTO_MERGE_OK")
 
     def test_hook_disabled_by_default(self):
         document = self.verdict()
@@ -224,18 +248,15 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(absent["state"], "not_applicable")
         self.assertNotIn("score", absent)
 
-    def test_intent_and_architecture_cap_at_two(self):
-        indexed = merge.score_intent(["llms.txt"], "")
-        self.assertEqual(indexed["score"], 2)
-        self.assertIn(merge.WEAK_CAP, indexed["evidence"])
-        self.assertIn("new actions are indexed", indexed["evidence"][0])
-        placed = merge.score_architecture(["docs/adr/0001.md"])
-        self.assertEqual(placed["score"], 2)
-        self.assertIn(merge.WEAK_CAP, placed["evidence"])
-        self.assertIn("diff stays in the agent contract paths", placed["evidence"][0])
-        missing = merge.score_intent([".github/actions/rubric-gate/action.yml"], "")
-        self.assertEqual(missing["score"], 1)
-        self.assertIn(merge.WEAK_CAP, missing["evidence"])
+    def test_unmeasured_intent_escalates(self):
+        document = self.verdict(paths=["docs/adr/template.md"], pr_body=None)
+        self.assertEqual(document["dimensions"]["intent"]["state"], "no_evidence")
+        self.assertEqual(document["verdict"], "ESCALATE")
+        rule = next(item for item in document["hard_rules"] if item["id"] == "structure-measured")
+        self.assertFalse(rule["passed"])
+        placed = merge.score_architecture(ROOT, ["notes.txt"])
+        self.assertEqual(placed["state"], "no_evidence")
+        self.assertEqual(self.verdict(paths=["notes.txt"])["verdict"], "ESCALATE")
 
     def test_not_applicable_is_excluded_and_risky_no_evidence_escalates(self):
         dimensions = {name: score.dim(3, "measured") for name in merge.DIMENSIONS}
@@ -246,7 +267,7 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(merge.decide(dimensions, rules, 0, risky=False), "AUTO_FIX")
         self.assertEqual(merge.decide(dimensions, rules, 0, risky=True), "ESCALATE")
         empty = {name: score.not_applicable("n/a") for name in merge.DIMENSIONS}
-        self.assertEqual(merge.decide(empty, rules, 0), "AUTO_FIX")
+        self.assertEqual(merge.decide(empty, rules, 0), "ESCALATE")
         self.assertEqual(merge.decide(empty, rules, 2), "ESCALATE")
 
     def test_no_evidence_on_risky_path_escalates(self):
@@ -265,15 +286,17 @@ class MergeTest(unittest.TestCase):
 
     def test_golden_docs_only_and_product_code(self):
         docs = _docs_only_verdict()
-        self.assertEqual(docs["verdict"], "AUTO_FIX")
+        self.assertEqual(docs["verdict"], "AUTO_MERGE_OK")
         self.assertEqual(docs["dimensions"]["correctness"]["state"], "not_applicable")
         self.assertNotIn("score", docs["dimensions"]["correctness"])
-        self.assertEqual(docs["dimensions"]["intent"]["score"], 2)
-        self.assertEqual(docs["dimensions"]["architecture"]["score"], 2)
-        self.assertIn(merge.WEAK_CAP, docs["dimensions"]["architecture"]["evidence"])
+        self.assertEqual(docs["dimensions"]["intent"]["score"], 3)
+        self.assertEqual(docs["dimensions"]["architecture"]["score"], 3)
+        self.assertIn("docs/adr/template.md", " ".join(docs["dimensions"]["architecture"]["evidence"]))
         self.assertTrue(next(item["passed"] for item in docs["hard_rules"] if item["id"] == "no-evidence-risky"))
         product = _product_code_verdict()
         self.assertEqual(product["verdict"], "ESCALATE")
+        self.assertEqual(product["dimensions"]["architecture"]["score"], 3)
+        self.assertEqual(product["dimensions"]["intent"]["score"], 3)
         self.assertEqual(product["dimensions"]["correctness"]["state"], "no_evidence")
         self.assertLessEqual(product["dimensions"]["correctness"]["score"], 2)
         self.assertEqual(product["dimensions"]["compat"]["state"], "no_evidence")

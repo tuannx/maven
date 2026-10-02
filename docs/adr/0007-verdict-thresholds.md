@@ -19,9 +19,13 @@ under the License.
 
 # ADR-0007 Verdict thresholds
 
-- status: superseded by ADR-0010
+- status: superseded by ADR-0010 and ADR-0011
 - date: 2026-10-02
 - decided-by: prior verdict on PR #1 was `AUTO_FIX` with tests at 1 and other dimensions at 2 or 3. Tie-break order is stated in `AGENTS.md`.
+
+## Context
+
+PR #1 was `AUTO_FIX` because one dimension was 1. The loop has to stop.
 
 ## Decision
 

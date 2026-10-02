@@ -5,10 +5,13 @@
   "dimensions": {
     "architecture": {
       "evidence": [
-        "diff stays in the agent contract paths or the product tree",
-        "capped at 2; no structural check; the llm hook cannot raise this"
+        "paths referenced from AGENTS.md and llms.txt resolve",
+        "skill mirrors match docs/agents (fast-maven-loop, rubric-gate, write-adr)",
+        "11 ADR files match docs/adr/template.md",
+        "no new action.yml",
+        "no workflow file in the diff"
       ],
-      "score": 2,
+      "score": 3,
       "state": "scored"
     },
     "clarity": {
@@ -37,10 +40,9 @@
     },
     "intent": {
       "evidence": [
-        "new actions are indexed; no banned marker added",
-        "capped at 2; no structural check; the llm hook cannot raise this"
+        "scope agent-contract covers 2 paths"
       ],
-      "score": 2,
+      "score": 3,
       "state": "scored"
     },
     "perf": {
@@ -93,6 +95,11 @@
       "evidence": "no no_evidence dimension",
       "id": "no-evidence-risky",
       "passed": true
+    },
+    {
+      "evidence": "architecture and intent are scored",
+      "id": "structure-measured",
+      "passed": true
     }
   ],
   "head_sha": "docs-head",
@@ -142,5 +149,5 @@
     "prior_verdict",
     "simpler_reversible"
   ],
-  "verdict": "AUTO_FIX"
+  "verdict": "AUTO_MERGE_OK"
 }
