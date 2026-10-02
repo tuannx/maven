@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "title": "rubric-gate-verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "verdict",
+    "blocking",
+    "loop",
+    "head_sha",
+    "base_sha",
+    "tie_break",
+    "dimensions",
+    "hard_rules",
+    "scorers",
+    "llm_hook"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "verdict": {"enum": ["AUTO_MERGE_OK", "AUTO_FIX", "ESCALATE"]},
+    "blocking": {"const": false},
+    "loop": {"type": "integer", "minimum": 0},
+    "head_sha": {"type": "string"},
+    "base_sha": {"type": "string"},
+    "tie_break": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        {"const": "adr"},
+        {"const": "stated_priorities"},
+        {"const": "existing_code_pattern"},
+        {"const": "prior_verdict"},
+        {"const": "simpler_reversible"}
+      ]
+    },
+    "dimensions": {"$ref": "#/$defs/dimensions"},
+    "hard_rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/hardRule"}
+    },
+    "scorers": {"$ref": "#/$defs/scorers"},
+    "llm_hook": {"$ref": "#/$defs/llmHook"}
+  },
+  "$defs": {
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "evidence"],
+      "properties": {
+        "score": {"type": "integer", "minimum": 0, "maximum": 3},
+        "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "correctness",
+        "intent",
+        "compat",
+        "security",
+        "perf",
+        "architecture",
+        "clarity",
+        "determinism",
+        "tests"
+      ],
+      "properties": {
+        "correctness": {"$ref": "#/$defs/score"},
+        "intent": {"$ref": "#/$defs/score"},
+        "compat": {"$ref": "#/$defs/score"},
+        "security": {"$ref": "#/$defs/score"},
+        "perf": {"$ref": "#/$defs/score"},
+        "architecture": {"$ref": "#/$defs/score"},
+        "clarity": {"$ref": "#/$defs/score"},
+        "determinism": {"$ref": "#/$defs/score"},
+        "tests": {"$ref": "#/$defs/score"}
+      }
+    },
+    "hardRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "passed", "evidence"],
+      "properties": {
+        "id": {"type": "string"},
+        "passed": {"type": "boolean"},
+        "evidence": {"type": "string"}
+      }
+    },
+    "scorerResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence"],
+      "properties": {
+        "status": {"enum": ["ok", "skipped", "failed", "maven_missing", "missing"]},
+        "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "scorers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["affected-build", "japicmp", "spotless", "comment-density", "bench-delta"],
+      "properties": {
+        "affected-build": {"$ref": "#/$defs/scorerResult"},
+        "japicmp": {"$ref": "#/$defs/scorerResult"},
+        "spotless": {"$ref": "#/$defs/scorerResult"},
+        "comment-density": {"$ref": "#/$defs/scorerResult"},
+        "bench-delta": {"$ref": "#/$defs/scorerResult"}
+      }
+    },
+    "llmHook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "status", "notes"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "status": {"enum": ["disabled", "missing_command", "failed", "ok"]},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
