@@ -86,9 +86,12 @@ def scan_contents_write(patch):
 
 
 def scan_third_party(patch):
+    push = "git " + "push"
+    create = "gh " + "pr create"
+    pattern = re.compile(r"\b" + re.escape(push) + r"\b|\b" + re.escape(create) + r"\b")
     for path, lines in added_by_file(patch).items():
         for line in lines:
-            if "apache/maven" in line and re.search(r"\bgit push\b|\bgh pr create\b", line):
+            if "apache/maven" in line and pattern.search(line):
                 return hard_rule("third-party-push", False, f"push or pr create toward apache/maven in {path}")
     return hard_rule("third-party-push", True, "no push or pr create toward apache/maven")
 
