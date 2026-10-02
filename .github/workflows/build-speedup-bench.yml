@@ -1,0 +1,104 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Dogfood for the composite action. The check name is the job name
+# build-speedup-bench. Callers pin the action with @v1 after that tag is cut.
+name: build-speedup-bench
+
+on:
+  workflow_dispatch:
+    inputs:
+      pom:
+        description: Reactor POM passed to the action
+        required: false
+        default: api/pom.xml
+        type: string
+      sticky-comment:
+        description: >-
+          Leave false. This workflow does not grant pull-requests: write.
+          Callers that set sticky-comment true must allow the step
+          "Update sticky pull request comment".
+        required: false
+        default: false
+        type: boolean
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/build-speedup-bench.yml"
+      - ".github/actions/build-speedup-bench/**"
+      - "llms.txt"
+
+permissions:
+  contents: read
+  # Step "Upload timing logs" inside the action calls actions/upload-artifact.
+  actions: write
+
+concurrency:
+  group: build-speedup-bench-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    name: build-speedup-bench
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Unit-test bench helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+            -s .github/actions/build-speedup-bench -p 'test_*.py' -v
+
+      - name: build-speedup-bench
+        id: bench
+        uses: ./.github/actions/build-speedup-bench
+        with:
+          pom: ${{ github.event_name == 'workflow_dispatch' && inputs.pom || 'api/pom.xml' }}
+          upload-logs: true
+          sticky-comment: ${{ github.event_name == 'workflow_dispatch' && inputs.sticky-comment }}
+
+      - name: Require action outputs
+        if: success()
+        shell: bash
+        env:
+          MVN_MEDIAN: ${{ steps.bench.outputs.mvn-median-seconds }}
+          WARM_SPEEDUP: ${{ steps.bench.outputs.warm-mvnd-speedup }}
+          CACHE_NO_CHANGE: ${{ steps.bench.outputs.cache-no-change-seconds }}
+          SUMMARY_PATH: ${{ steps.bench.outputs.summary-path }}
+        run: |
+          set -euo pipefail
+          test -n "$MVN_MEDIAN"
+          test -n "$WARM_SPEEDUP"
+          test -n "$CACHE_NO_CHANGE"
+          test -f "$SUMMARY_PATH"
+          grep -q '| Scenario | Seconds | Speedup vs mvn median |' "$SUMMARY_PATH"
+          {
+            echo "### Checked outputs"
+            echo ""
+            echo "| Output | Value |"
+            echo "|---|---|"
+            echo "| mvn-median-seconds | ${MVN_MEDIAN} |"
+            echo "| warm-mvnd-speedup | ${WARM_SPEEDUP} |"
+            echo "| cache-no-change-seconds | ${CACHE_NO_CHANGE} |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,184 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: build-speedup-bench
+description: >-
+  Time a Maven reactor with host mvn, warm mvnd, and an opt-in
+  maven-build-cache-extension. Writes a markdown table to the job summary.
+  Does not fail when the speedup is small.
+
+inputs:
+  pom:
+    description: >-
+      Reactor POM passed as mvn -f. Point this at the aggregator, not -pl from a parent.
+    required: false
+    default: pom.xml
+  scenarios:
+    description: Comma-separated subset of mvn, mvnd, build-cache.
+    required: false
+    default: mvn,mvnd,build-cache
+  maven-version:
+    description: Apache Maven version installed for host mvn. Checksum comes from Maven Central.
+    required: false
+    default: "3.9.11"
+  mvnd-version:
+    description: Maven Daemon version. The build-cache scenario runs on mvnd.
+    required: false
+    default: "1.0.6"
+  mvnd-sha256:
+    description: >-
+      sha256 of the linux mvnd tarball. Required when mvnd-version is not 1.0.6
+      on linux-amd64 and the GitHub release has no .sha256 asset.
+    required: false
+    default: ""
+  mvn-runs:
+    description: >-
+      Timed host mvn clean package runs. Default 3 so the median is the middle
+      sample. Two runs make the median the average of a pair.
+    required: false
+    default: "3"
+  mvnd-warm-runs:
+    description: >-
+      Timed warm mvnd clean package runs after one cold run. Default 3, same
+      median reason as mvn-runs.
+    required: false
+    default: "3"
+  threads:
+    description: Value passed to mvn/mvnd -T.
+    required: false
+    default: "1C"
+  extra-maven-args:
+    description: Whitespace-separated arguments added to every invocation. No spaces inside one argument.
+    required: false
+    default: "-DskipTests -Drat.skip=true -Dcheckstyle.skip=true -Denforcer.skip=true"
+  java-version:
+    description: JDK version passed to actions/setup-java when setup-java is true.
+    required: false
+    default: "21"
+  java-distribution:
+    description: actions/setup-java distribution.
+    required: false
+    default: temurin
+  setup-java:
+    description: Install a JDK before Maven. Set false when the job already has JAVA_HOME.
+    required: false
+    default: "true"
+  touch-file:
+    description: >-
+      Source file used for the cache mtime touch and one-line edit.
+      Empty discovers the first src/main/java file under the POM directory.
+    required: false
+    default: ""
+  upload-logs:
+    description: >-
+      Upload bench-logs with actions/upload-artifact (step "Upload timing logs").
+      Requires actions:write. Default false so contents:read is enough.
+    required: false
+    default: "false"
+  artifact-name:
+    description: Artifact name when upload-logs is true.
+    required: false
+    default: build-speedup-bench-logs
+  sticky-comment:
+    description: >-
+      Update one pull request comment (step "Update sticky pull request comment").
+      Default off. Requires pull-requests:write. No effect outside pull_request.
+    required: false
+    default: "false"
+
+outputs:
+  mvn-median-seconds:
+    description: Median seconds of the timed host mvn clean package runs. Empty when mvn did not run.
+    value: ${{ steps.measure.outputs.mvn-median-seconds }}
+  warm-mvnd-seconds:
+    description: Median seconds of the warm mvnd clean package runs. Empty when mvnd did not run.
+    value: ${{ steps.measure.outputs.warm-mvnd-seconds }}
+  warm-mvnd-speedup:
+    description: >-
+      mvn median divided by warm mvnd median, plain decimal such as 3.04.
+      Empty when either side is missing.
+    value: ${{ steps.measure.outputs.warm-mvnd-speedup }}
+  cache-no-change-seconds:
+    description: Seconds of the build-cache no-change rebuild. Empty when that scenario did not run.
+    value: ${{ steps.measure.outputs.cache-no-change-seconds }}
+  summary-path:
+    description: Workspace-relative path of the markdown summary.
+    value: ${{ steps.measure.outputs.summary-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK
+      if: inputs.setup-java == 'true'
+      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      with:
+        distribution: ${{ inputs.java-distribution }}
+        java-version: ${{ inputs.java-version }}
+
+    - name: Require Java on PATH
+      if: inputs.setup-java != 'true'
+      shell: bash
+      run: command -v java >/dev/null
+
+    - name: Install Apache Maven
+      shell: bash
+      env:
+        MAVEN_VERSION: ${{ inputs.maven-version }}
+      run: bash "$GITHUB_ACTION_PATH/install-tools.sh" maven
+
+    - name: Install Maven Daemon
+      if: contains(inputs.scenarios, 'mvnd') || contains(inputs.scenarios, 'build-cache')
+      shell: bash
+      env:
+        MVND_VERSION: ${{ inputs.mvnd-version }}
+        MVND_SHA256: ${{ inputs.mvnd-sha256 }}
+      run: bash "$GITHUB_ACTION_PATH/install-tools.sh" mvnd
+
+    - name: Time the reactor
+      id: measure
+      shell: bash
+      env:
+        BENCH_POM: ${{ inputs.pom }}
+        BENCH_SCENARIOS: ${{ inputs.scenarios }}
+        BENCH_MVN_RUNS: ${{ inputs.mvn-runs }}
+        BENCH_MVND_WARM_RUNS: ${{ inputs.mvnd-warm-runs }}
+        BENCH_THREADS: ${{ inputs.threads }}
+        BENCH_EXTRA_ARGS: ${{ inputs.extra-maven-args }}
+        BENCH_TOUCH_FILE: ${{ inputs.touch-file }}
+        BENCH_ACTION_DIR: ${{ github.action_path }}
+        BENCH_REVISION: ${{ github.sha }}
+      run: bash "$GITHUB_ACTION_PATH/run-bench.sh"
+
+    - name: Upload timing logs
+      if: always() && inputs.upload-logs == 'true'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        retention-days: 14
+        if-no-files-found: warn
+        path: bench-logs/
+
+    - name: Update sticky pull request comment
+      if: always() && inputs.sticky-comment == 'true'
+      shell: bash
+      env:
+        BENCH_STICKY_COMMENT: ${{ inputs.sticky-comment }}
+        BENCH_PR_NUMBER: ${{ github.event.pull_request.number }}
+        BENCH_SUMMARY_PATH: bench-logs/summary.md
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: python3 "$GITHUB_ACTION_PATH/sticky_comment.py"
