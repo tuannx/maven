@@ -26,6 +26,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.request import Request
 
 import cli
 import score
@@ -305,6 +306,23 @@ class BenchGoldenTest(unittest.TestCase):
         self.assertTrue(score.intersects_bench([".github/actions/build-speedup-bench/run-bench.sh"]))
         self.assertFalse(score.intersects_bench(["docs/llms.txt"]))
         self.assertFalse(score.intersects_bench(["api/maven-api-core/src/main/java/A.java"]))
+
+    def test_artifact_redirect_drops_the_bearer_token(self):
+        handler = score._DropCredentialOnRedirect()
+        original = Request(
+            "https://api.github.com/repos/tuannx/maven/actions/artifacts/1/zip",
+            headers={"Authorization": "Bearer secret", "User-Agent": "rubric-gate"},
+        )
+        redirected = handler.redirect_request(
+            original,
+            None,
+            302,
+            "Found",
+            {},
+            "https://objects.githubusercontent.com/artifact.zip",
+        )
+        self.assertIsNone(redirected.get_header("Authorization"))
+        self.assertEqual(redirected.get_header("User-agent"), "rubric-gate")
 
     def test_runs_query_uses_head_sha(self):
         url = score.bench_runs_query("tuannx/maven", HEAD_SHA)

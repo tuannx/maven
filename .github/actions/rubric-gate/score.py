@@ -30,7 +30,7 @@ import subprocess
 import time
 import zipfile
 from pathlib import Path
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 SCORERS = ("affected-build", "japicmp", "spotless", "comment-density", "bench-delta")
 
@@ -637,6 +637,11 @@ def github_json(url, token):
         return json.loads(response.read().decode("utf-8"))
 
 
+class _DropCredentialOnRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return Request(newurl, headers={"User-Agent": "rubric-gate"})
+
+
 def github_bytes(url, token):
     request = Request(
         url,
@@ -647,7 +652,8 @@ def github_bytes(url, token):
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )
-    with urlopen(request, timeout=60) as response:
+    opener = build_opener(_DropCredentialOnRedirect)
+    with opener.open(request, timeout=60) as response:
         return response.read()
 
 

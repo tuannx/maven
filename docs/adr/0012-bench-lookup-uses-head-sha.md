@@ -29,7 +29,7 @@ under the License.
 
 ## Decision
 
-bench-delta queries `build-speedup-bench` with `github.event.pull_request.head.sha`, and with `github.sha` when the event is not a pull request. The action passes that value as `RUBRIC_BENCH_SHA`. It does not fall back to `GITHUB_SHA`. If the diff matches no `pull_request` path in `.github/workflows/build-speedup-bench.yml`, perf is `not_applicable` and the client does not call the API. If the filter matches, the client polls at most 13 times and sleeps 20 seconds only between attempts. A success whose `head_sha` differs from `RUBRIC_BENCH_SHA` is `no_evidence` and does not score 3. When the bound ends without a matching success, perf is `no_evidence` and the evidence is the last reason.
+bench-delta queries `build-speedup-bench` with `github.event.pull_request.head.sha`, and with `github.sha` when the event is not a pull request. The action passes that value as `RUBRIC_BENCH_SHA`. It does not fall back to `GITHUB_SHA`. If the diff matches no `pull_request` path in `.github/workflows/build-speedup-bench.yml`, perf is `not_applicable` and the client does not call the API. If the filter matches, the client polls at most 13 times and sleeps 20 seconds only between attempts. A success whose `head_sha` differs from `RUBRIC_BENCH_SHA` is `no_evidence` and does not score 3. When the bound ends without a matching success, perf is `no_evidence` and the evidence is the last reason. The artifact zip redirect is fetched without the bearer token, because the blob host rejects that header.
 
 ## Options
 
