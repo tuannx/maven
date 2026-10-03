@@ -17,6 +17,7 @@
 
 # Dogfood for the composite action. The check name is the job name
 # build-speedup-bench. Callers pin the action with @v1 after that tag is cut.
+# Throwaway dispatch so bench-delta calls the Actions API. Not for merge.
 name: build-speedup-bench
 
 on:
