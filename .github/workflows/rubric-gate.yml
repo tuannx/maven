@@ -233,6 +233,7 @@ jobs:
     name: bench-delta
     permissions:
       contents: read
+      actions: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -276,7 +277,6 @@ jobs:
     if: always()
     permissions:
       contents: read
-      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
