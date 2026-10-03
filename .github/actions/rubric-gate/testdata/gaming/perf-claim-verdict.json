@@ -1,6 +1,6 @@
 {
   "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
-  "base_sha": "docs-base",
+  "base_sha": "perf-claim-base",
   "blocking": false,
   "dimensions": {
     "architecture": {
@@ -40,7 +40,7 @@
     },
     "intent": {
       "evidence": [
-        "scope agent-contract covers 2 paths"
+        "scope agent-contract covers 1 paths"
       ],
       "score": 3,
       "state": "scored"
@@ -107,9 +107,9 @@
       "passed": true
     },
     {
-      "evidence": "no speedup claim in the pull request body",
+      "evidence": "speedup claim while bench-delta status is skipped",
       "id": "perf-claim",
-      "passed": true
+      "passed": false
     },
     {
       "evidence": "no no_evidence dimension",
@@ -122,7 +122,7 @@
       "passed": true
     }
   ],
-  "head_sha": "docs-head",
+  "head_sha": "perf-claim-head",
   "llm_hook": {
     "enabled": false,
     "notes": [],
@@ -169,5 +169,5 @@
     "prior_verdict",
     "simpler_reversible"
   ],
-  "verdict": "AUTO_MERGE_OK"
+  "verdict": "ESCALATE"
 }

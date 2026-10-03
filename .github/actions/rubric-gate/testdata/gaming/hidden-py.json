@@ -1,0 +1,10 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "hidden-py-base",
+  "head_sha": "hidden-py-head",
+  "patch": "diff --git a/docs/agents/evil.py b/docs/agents/evil.py\nnew file mode 100644\n--- /dev/null\n+++ b/docs/agents/evil.py\n+def hidden():\n+    return 1\n",
+  "paths": [
+    "docs/agents/evil.py"
+  ],
+  "pr_body": "scope: agent-contract\n"
+}

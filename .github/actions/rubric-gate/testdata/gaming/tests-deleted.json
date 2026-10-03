@@ -1,0 +1,11 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "tests-deleted-base",
+  "head_sha": "tests-deleted-head",
+  "patch": "diff --git a/.github/actions/rubric-gate/test_score.py b/.github/actions/rubric-gate/test_score.py\ndeleted file mode 100644\n--- a/.github/actions/rubric-gate/test_score.py\n+++ /dev/null\n-        self.assertEqual(1, 1)\n",
+  "paths": [
+    ".github/actions/rubric-gate/test_score.py"
+  ],
+  "pr_body": "scope: ci\n",
+  "unit_test_rc": 0
+}

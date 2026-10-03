@@ -1,6 +1,6 @@
 {
   "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
-  "base_sha": "docs-base",
+  "base_sha": "hidden-py-base",
   "blocking": false,
   "dimensions": {
     "architecture": {
@@ -16,9 +16,11 @@
     },
     "clarity": {
       "evidence": [
-        "no applicable clarity signal"
+        "no trailing whitespace on added source lines",
+        "comment ratio 0.00"
       ],
-      "state": "not_applicable"
+      "score": 3,
+      "state": "scored"
     },
     "compat": {
       "evidence": [
@@ -34,13 +36,14 @@
     },
     "determinism": {
       "evidence": [
-        "no added Python"
+        "no random, datetime.now, or time.time on added Python lines"
       ],
-      "state": "not_applicable"
+      "score": 3,
+      "state": "scored"
     },
     "intent": {
       "evidence": [
-        "scope agent-contract covers 2 paths"
+        "scope agent-contract covers 1 paths"
       ],
       "score": 3,
       "state": "scored"
@@ -92,9 +95,9 @@
       "passed": true
     },
     {
-      "evidence": "no code path under docs or .cursor",
+      "evidence": "code path under docs or .cursor: docs/agents/evil.py",
       "id": "hidden-code",
-      "passed": true
+      "passed": false
     },
     {
       "evidence": "no verdict.json in the diff",
@@ -122,7 +125,7 @@
       "passed": true
     }
   ],
-  "head_sha": "docs-head",
+  "head_sha": "hidden-py-head",
   "llm_hook": {
     "enabled": false,
     "notes": [],
@@ -145,9 +148,9 @@
     },
     "comment-density": {
       "evidence": [
-        "no added source lines"
+        "comment ratio 0.00"
       ],
-      "status": "skipped"
+      "status": "ok"
     },
     "japicmp": {
       "evidence": [
@@ -157,7 +160,7 @@
     },
     "spotless": {
       "evidence": [
-        "no java or xml in the diff"
+        "no trailing whitespace on added source lines"
       ],
       "status": "skipped"
     }
@@ -169,5 +172,5 @@
     "prior_verdict",
     "simpler_reversible"
   ],
-  "verdict": "AUTO_MERGE_OK"
+  "verdict": "ESCALATE"
 }
