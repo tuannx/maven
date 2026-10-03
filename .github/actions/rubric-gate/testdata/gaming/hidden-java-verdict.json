@@ -1,13 +1,13 @@
 {
   "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
-  "base_sha": "docs-base",
+  "base_sha": "hidden-java-base",
   "blocking": false,
   "dimensions": {
     "architecture": {
       "evidence": [
         "paths referenced from AGENTS.md and llms.txt resolve",
-        "skill mirrors match docs/agents (fixture-skill)",
-        "1 ADR files match docs/adr/template.md",
+        "skill mirrors match docs/agents (fast-maven-loop, rubric-gate, write-adr)",
+        "13 ADR files match docs/adr/template.md",
         "no new action.yml",
         "no workflow file in the diff"
       ],
@@ -16,9 +16,12 @@
     },
     "clarity": {
       "evidence": [
-        "no applicable clarity signal"
+        "spotless not run",
+        "java or xml changed",
+        "comment ratio 0.00"
       ],
-      "state": "not_applicable"
+      "score": 2,
+      "state": "no_evidence"
     },
     "compat": {
       "evidence": [
@@ -40,7 +43,7 @@
     },
     "intent": {
       "evidence": [
-        "scope agent-contract covers 2 paths"
+        "scope agent-contract covers 1 paths"
       ],
       "score": 3,
       "state": "scored"
@@ -92,9 +95,9 @@
       "passed": true
     },
     {
-      "evidence": "no code path under docs or .cursor",
+      "evidence": "code path under docs or .cursor: docs/adr/Hidden.java",
       "id": "hidden-code",
-      "passed": true
+      "passed": false
     },
     {
       "evidence": "no verdict.json in the diff",
@@ -112,7 +115,7 @@
       "passed": true
     },
     {
-      "evidence": "no no_evidence dimension",
+      "evidence": "no_evidence capped at 2; paths are not risky",
       "id": "no-evidence-risky",
       "passed": true
     },
@@ -122,7 +125,7 @@
       "passed": true
     }
   ],
-  "head_sha": "docs-head",
+  "head_sha": "hidden-java-head",
   "llm_hook": {
     "enabled": false,
     "notes": [],
@@ -145,9 +148,9 @@
     },
     "comment-density": {
       "evidence": [
-        "no added source lines"
+        "comment ratio 0.00"
       ],
-      "status": "skipped"
+      "status": "ok"
     },
     "japicmp": {
       "evidence": [
@@ -157,7 +160,8 @@
     },
     "spotless": {
       "evidence": [
-        "no java or xml in the diff"
+        "spotless not run",
+        "java or xml changed"
       ],
       "status": "skipped"
     }
@@ -169,5 +173,5 @@
     "prior_verdict",
     "simpler_reversible"
   ],
-  "verdict": "AUTO_MERGE_OK"
+  "verdict": "ESCALATE"
 }

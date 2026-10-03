@@ -48,7 +48,17 @@ TIE_BREAK = (
     "prior_verdict",
     "simpler_reversible",
 )
-HARD_RULES = ("secrets", "contents-write", "third-party-push", "report-only", "gate-unit-tests")
+HARD_RULES = (
+    "secrets",
+    "contents-write",
+    "third-party-push",
+    "report-only",
+    "gate-unit-tests",
+    "hidden-code",
+    "forged-verdict",
+    "tests-weakened",
+    "perf-claim",
+)
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"ghp_[A-Za-z0-9]{20,}"),
@@ -94,6 +104,128 @@ def scan_third_party(patch):
             if "apache/maven" in line and pattern.search(line):
                 return hard_rule("third-party-push", False, f"push or pr create toward apache/maven in {path}")
     return hard_rule("third-party-push", True, "no push or pr create toward apache/maven")
+
+
+# Code dropped under a docs or skill prefix still classifies as agent-contract.
+# ADR-0013. Suffixes only: a markdown ADR stays allowed.
+HIDDEN_CODE_PREFIXES = ("docs/", ".cursor/")
+HIDDEN_CODE_SUFFIXES = (".java", ".xml", ".py", ".class", ".jar", ".sh")
+TEST_PATH = re.compile(r"(^|/)(test_.+\.py|.+Tests?\.java)$|src/test/")
+ASSERTION = re.compile(
+    r"(self\.assert[A-Za-z0-9_]+|assertEquals|assertNotEquals|assertTrue|assertFalse|"
+    r"assertNull|assertNotNull|assertSame|assertNotSame|assertThat|@Test\b)"
+)
+PERF_CLAIM = re.compile(r"warm-mvnd-speedup|\bspeedup\s*[:=]?\s*\d", re.IGNORECASE)
+
+
+def hidden_code_path(path):
+    if not path.startswith(HIDDEN_CODE_PREFIXES):
+        return False
+    if path.endswith(HIDDEN_CODE_SUFFIXES):
+        return True
+    name = path.rsplit("/", 1)[-1]
+    return name == "pom.xml"
+
+
+def scan_hidden_code(paths):
+    hidden = [path for path in paths if hidden_code_path(path)]
+    if hidden:
+        shown = ", ".join(hidden[:8])
+        return hard_rule("hidden-code", False, f"code path under docs or .cursor: {shown}")
+    return hard_rule("hidden-code", True, "no code path under docs or .cursor")
+
+
+def verdict_json_path(path):
+    return path == "verdict.json" or path.endswith("/verdict.json")
+
+
+def scan_forged_verdict(paths, patch, head_sha, base_sha):
+    forged = [path for path in paths if verdict_json_path(path)]
+    if not forged:
+        return hard_rule("forged-verdict", True, "no verdict.json in the diff")
+    reasons = []
+    added = added_by_file(patch)
+    for path in forged[:4]:
+        reasons.append(f"{path} is in the diff")
+        blob = "\n".join(added.get(path, [])).strip()
+        if not blob:
+            continue
+        try:
+            document = json.loads(blob)
+        except json.JSONDecodeError:
+            reasons.append(f"{path} is not a single JSON document")
+            continue
+        if not isinstance(document, dict):
+            reasons.append(f"{path} is not a JSON object")
+            continue
+        if document.get("verdict") == "AUTO_MERGE_OK":
+            reasons.append(f"{path} claims AUTO_MERGE_OK")
+        if str(document.get("head_sha")) != str(head_sha):
+            reasons.append(f"{path} head_sha {document.get('head_sha')} != {head_sha}")
+        if str(document.get("base_sha")) != str(base_sha):
+            reasons.append(f"{path} base_sha {document.get('base_sha')} != {base_sha}")
+    return hard_rule("forged-verdict", False, "; ".join(reasons))
+
+
+def test_path(path):
+    return bool(TEST_PATH.search(path))
+
+
+def scan_tests_weakened(patch):
+    old = None
+    new = None
+    removed = {}
+    added = {}
+    deleted = []
+    for line in patch.splitlines():
+        if line.startswith("diff --git "):
+            old = None
+            new = None
+            continue
+        if line.startswith("--- "):
+            old = line[4:]
+            if old.startswith("a/"):
+                old = old[2:]
+            continue
+        if line.startswith("+++ "):
+            new = line[4:]
+            if new.startswith("b/"):
+                new = new[2:]
+            if new == "/dev/null" and old and test_path(old):
+                deleted.append(old)
+            continue
+        path = new if new and new != "/dev/null" else old
+        if not path or path == "/dev/null" or not test_path(path):
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            text = line[1:].strip()
+            if ASSERTION.search(text):
+                added[text] = added.get(text, 0) + 1
+        elif line.startswith("-") and not line.startswith("---"):
+            text = line[1:].strip()
+            if ASSERTION.search(text):
+                removed[text] = removed.get(text, 0) + 1
+    missing = []
+    for text, count in removed.items():
+        gap = count - added.get(text, 0)
+        if gap > 0:
+            missing.append(text)
+    if not deleted and not missing:
+        return hard_rule("tests-weakened", True, "no deleted test file and no removed assertion")
+    parts = []
+    if deleted:
+        parts.append("deleted test file: " + ", ".join(deleted[:4]))
+    if missing:
+        parts.append("removed assertion not re-added: " + missing[0])
+    return hard_rule("tests-weakened", False, "; ".join(parts))
+
+
+def scan_perf_claim(pr_body, bench_status):
+    if not pr_body or PERF_CLAIM.search(pr_body) is None:
+        return hard_rule("perf-claim", True, "no speedup claim in the pull request body")
+    if bench_status == "ok":
+        return hard_rule("perf-claim", True, "bench-delta status ok")
+    return hard_rule("perf-claim", False, f"speedup claim while bench-delta status is {bench_status}")
 
 
 def scan_report_only(workflow_text):
@@ -288,6 +420,10 @@ def build_verdict(
         rules.append(hard_rule("gate-unit-tests", True, "rubric-gate unit tests exit 0"))
     else:
         rules.append(hard_rule("gate-unit-tests", False, f"rubric-gate unit tests exit {unit_test_rc}"))
+    rules.append(scan_hidden_code(paths))
+    rules.append(scan_forged_verdict(paths, patch, head_sha, base_sha))
+    rules.append(scan_tests_weakened(patch))
+    rules.append(scan_perf_claim(pr_body, by_name.get("bench-delta", {}).get("status")))
 
     clarity_parts = []
     for name in ("spotless", "comment-density"):

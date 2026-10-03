@@ -1,0 +1,10 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "perf-claim-base",
+  "head_sha": "perf-claim-head",
+  "patch": "diff --git a/docs/adr/0001-bench-is-composite-action.md b/docs/adr/0001-bench-is-composite-action.md\nnew file mode 100644\n--- /dev/null\n+++ b/docs/adr/0001-bench-is-composite-action.md\n+# title\n",
+  "paths": [
+    "docs/adr/0001-bench-is-composite-action.md"
+  ],
+  "pr_body": "scope: agent-contract\nwarm-mvnd-speedup 9.50\n"
+}

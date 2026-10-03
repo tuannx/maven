@@ -1,13 +1,13 @@
 {
   "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
-  "base_sha": "docs-base",
+  "base_sha": "tests-deleted-base",
   "blocking": false,
   "dimensions": {
     "architecture": {
       "evidence": [
         "paths referenced from AGENTS.md and llms.txt resolve",
-        "skill mirrors match docs/agents (fixture-skill)",
-        "1 ADR files match docs/adr/template.md",
+        "skill mirrors match docs/agents (fast-maven-loop, rubric-gate, write-adr)",
+        "13 ADR files match docs/adr/template.md",
         "no new action.yml",
         "no workflow file in the diff"
       ],
@@ -40,7 +40,7 @@
     },
     "intent": {
       "evidence": [
-        "scope agent-contract covers 2 paths"
+        "scope ci covers 1 paths"
       ],
       "score": 3,
       "state": "scored"
@@ -102,9 +102,9 @@
       "passed": true
     },
     {
-      "evidence": "no deleted test file and no removed assertion",
+      "evidence": "deleted test file: .github/actions/rubric-gate/test_score.py; removed assertion not re-added: self.assertEqual(1, 1)",
       "id": "tests-weakened",
-      "passed": true
+      "passed": false
     },
     {
       "evidence": "no speedup claim in the pull request body",
@@ -122,7 +122,7 @@
       "passed": true
     }
   ],
-  "head_sha": "docs-head",
+  "head_sha": "tests-deleted-head",
   "llm_hook": {
     "enabled": false,
     "notes": [],
@@ -169,5 +169,5 @@
     "prior_verdict",
     "simpler_reversible"
   ],
-  "verdict": "AUTO_MERGE_OK"
+  "verdict": "ESCALATE"
 }

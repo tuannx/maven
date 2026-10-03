@@ -54,7 +54,7 @@ Each dimension has `state` and a non-empty evidence array. Only `scored` and `no
 | clarity | minimum of the applicable spotless and comment-density parts. Java or XML changed and `spotless:check` did not run: `no_evidence`. No added source lines: `not_applicable` |
 | perf | bench-delta. ADR-0012. A diff outside the `build-speedup-bench` path filter is `not_applicable` and does not poll. A matching diff reuses the run for `github.event.pull_request.head.sha` (`github.sha` otherwise). The wait is at most 13 attempts. A miss, a mismatched `head_sha`, or a run still in progress at the bound is `no_evidence` and does not score 3 |
 | security | hard rules below. A failed security rule scores 0 |
-| intent | ADR-0011. 3 when the pull request body has `scope:` and every changed path is in a named group. 1 when the line is missing, names an unknown group, or leaves a path out. `no_evidence` when the body was not supplied |
+| intent | ADR-0011. 3 when the pull request body has `scope:` and every changed path is in a named group. 1 when the line is missing, names an unknown group, or leaves a path out. That 1 is the lying-scope case and stays `AUTO_FIX` while `loop` is under 2. `no_evidence` when the body was not supplied |
 | architecture | ADR-0011. 3 when the boundaries checks for the touched groups pass, with those checks cited. 1 names the failing item to fix. `no_evidence` when `boundaries.yml` is missing, a path is in no group, or a module pom cannot be parsed |
 | determinism | No added Python: `not_applicable`. 1 when added Python calls `random.`, `datetime.now(`, or `time.time(`. `time.sleep` is allowed |
 
@@ -75,6 +75,10 @@ Any failure yields `ESCALATE`.
 | third-party-push | one added line names apache/maven and also runs a git write or the gh cli create command (`scan_third_party`) |
 | report-only | `.github/workflows/rubric-gate.yml` grants `contents: write` or a line is `exit 1` |
 | gate-unit-tests | rubric-gate unit tests exit non-zero |
+| hidden-code | a path under `docs/` or `.cursor/` ends in `.java`, `.xml`, `.py`, `.class`, `.jar`, `.sh`, or is named `pom.xml`. ADR-0013 |
+| forged-verdict | the diff contains `verdict.json`. A golden named `*-verdict.json` does not match |
+| tests-weakened | a test file is deleted, or an assertion line is removed and not re-added verbatim |
+| perf-claim | the pull request body matches `warm-mvnd-speedup` or `speedup` followed by a number, and bench-delta status is not `ok` |
 | no-evidence-risky | a dimension is `no_evidence` and the diff has a risky path |
 | structure-measured | architecture or intent is not `scored` |
 

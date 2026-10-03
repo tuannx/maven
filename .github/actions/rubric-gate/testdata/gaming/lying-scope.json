@@ -1,0 +1,10 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "lying-scope-base",
+  "head_sha": "lying-scope-head",
+  "patch": "diff --git a/.github/actions/rubric-gate/README.md b/.github/actions/rubric-gate/README.md\nnew file mode 100644\n--- /dev/null\n+++ b/.github/actions/rubric-gate/README.md\n+# note\n",
+  "paths": [
+    ".github/actions/rubric-gate/README.md"
+  ],
+  "pr_body": "scope: agent-contract\n"
+}
