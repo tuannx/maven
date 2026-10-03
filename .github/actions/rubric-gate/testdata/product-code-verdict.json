@@ -49,10 +49,9 @@
     },
     "perf": {
       "evidence": [
-        "product diff; build-speedup-bench did not run"
+        "bench workflow path filter did not match"
       ],
-      "score": 2,
-      "state": "no_evidence"
+      "state": "not_applicable"
     },
     "security": {
       "evidence": [
@@ -96,7 +95,7 @@
       "passed": true
     },
     {
-      "evidence": "no_evidence on correctness, compat, perf, clarity, tests; risky paths present",
+      "evidence": "no_evidence on correctness, compat, clarity, tests; risky paths present",
       "id": "no-evidence-risky",
       "passed": false
     },
@@ -123,7 +122,7 @@
     },
     "bench-delta": {
       "evidence": [
-        "product diff; build-speedup-bench did not run"
+        "bench workflow path filter did not match"
       ],
       "status": "skipped"
     },

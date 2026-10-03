@@ -300,7 +300,8 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(product["dimensions"]["correctness"]["state"], "no_evidence")
         self.assertLessEqual(product["dimensions"]["correctness"]["score"], 2)
         self.assertEqual(product["dimensions"]["compat"]["state"], "no_evidence")
-        self.assertEqual(product["dimensions"]["perf"]["state"], "no_evidence")
+        self.assertEqual(product["dimensions"]["perf"]["state"], "not_applicable")
+        self.assertNotIn("score", product["dimensions"]["perf"])
         self.assertFalse(next(item["passed"] for item in product["hard_rules"] if item["id"] == "no-evidence-risky"))
         for name, document in (("docs-only-verdict.json", docs), ("product-code-verdict.json", product)):
             expected = json.loads((GOLDEN / name).read_text(encoding="utf-8"))

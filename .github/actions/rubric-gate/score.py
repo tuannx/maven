@@ -51,8 +51,14 @@ JAPICMP_MODULES = (
 # ADR-0008. Dogfood run 36996291340 warm-mvnd-speedup was 3.11; the prior run was 3.16.
 BASELINE_SPEEDUP = 3.11
 SPEEDUP_REGRESSION = 0.15
-BENCH_SOURCE_PREFIX = ".github/actions/build-speedup-bench/"
-BENCH_WORKFLOW = ".github/workflows/build-speedup-bench.yml"
+# ADR-0012. Run 37138710060 slept 30 * 20s on the merge SHA. Sleep only between
+# attempts, so the cap is (ATTEMPTS - 1) * SECONDS. A finished run returns on
+# the first response.
+BENCH_POLL_ATTEMPTS = 13
+BENCH_POLL_SECONDS = 20
+BENCH_FILTER_MISS = "bench workflow path filter did not match"
+SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
+REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 SOURCE_SUFFIXES = (".py", ".java", ".sh", ".yml", ".yaml")
 FORMAT_SUFFIXES = SOURCE_SUFFIXES + (".xml",)
@@ -306,10 +312,79 @@ def interpret_maven(returncode, log, goal):
     return 0, 1, f"maven {goal} exit {returncode}"
 
 
-def intersects_bench(paths):
+def pull_request_paths(workflow_text):
+    in_on = False
+    in_pull_request = False
+    in_paths = False
+    pull_request_indent = 0
+    paths_indent = 0
+    paths = []
+    for raw in workflow_text.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        stripped = raw.strip()
+        if indent == 0:
+            in_on = stripped == "on:"
+            in_pull_request = False
+            in_paths = False
+            continue
+        if not in_on:
+            continue
+        if stripped == "pull_request:":
+            in_pull_request = True
+            pull_request_indent = indent
+            in_paths = False
+            continue
+        if in_pull_request and indent <= pull_request_indent:
+            in_pull_request = False
+            in_paths = False
+        if not in_pull_request:
+            continue
+        if stripped == "paths:":
+            in_paths = True
+            paths_indent = indent
+            continue
+        if in_paths and indent <= paths_indent:
+            in_paths = False
+            continue
+        if in_paths and stripped.startswith("- "):
+            value = stripped[2:].strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            paths.append(value)
+    return tuple(paths)
+
+
+def bench_workflow_file(root=None):
+    if root is None:
+        return Path(__file__).resolve().parents[2] / "workflows" / "build-speedup-bench.yml"
+    return Path(root) / ".github" / "workflows" / "build-speedup-bench.yml"
+
+
+def bench_patterns(root=None):
+    workflow = bench_workflow_file(root)
+    if not workflow.is_file():
+        raise ValueError(f"bench workflow missing: {workflow}")
+    patterns = pull_request_paths(workflow.read_text(encoding="utf-8"))
+    if not patterns:
+        raise ValueError("build-speedup-bench.yml pull_request paths are empty")
+    return patterns
+
+
+def path_matches_pattern(path, pattern):
+    if pattern.endswith("/**"):
+        prefix = pattern[:-3]
+        return path == prefix or path.startswith(prefix + "/")
+    return path == pattern
+
+
+def intersects_bench(paths, patterns=None):
+    patterns = bench_patterns() if patterns is None else patterns
     for path in paths:
-        if path == BENCH_WORKFLOW or path.startswith(BENCH_SOURCE_PREFIX):
-            return True
+        for pattern in patterns:
+            if path_matches_pattern(path, pattern):
+                return True
     return False
 
 
@@ -325,11 +400,13 @@ def score_speedup(current, baseline=BASELINE_SPEEDUP, regression=SPEEDUP_REGRESS
 
 
 def evaluate_bench(paths, speedup, fetch_error):
-    if not intersects_bench(paths):
-        if product_paths(paths):
-            # ADR-0010
-            return no_evidence("product diff; build-speedup-bench did not run"), "skipped"
-        return not_applicable("no bench sources in the diff"), "skipped"
+    try:
+        matched = intersects_bench(paths)
+    except ValueError as error:
+        return no_evidence(str(error)), "failed"
+    if not matched:
+        # ADR-0012. The bench workflow did not start, so there is nothing to poll.
+        return not_applicable(BENCH_FILTER_MISS), "skipped"
     if fetch_error:
         return no_evidence(fetch_error), "failed"
     if speedup is None:
@@ -355,29 +432,56 @@ def speedup_from_zip(payload):
         return parse_speedup(archive.read(names[0]).decode("utf-8"))
 
 
-def choose_run(payload):
-    # GitHub lists workflow_runs newest first. Score that run only.
-    runs = payload.get("workflow_runs") or []
-    return runs[0] if runs else None
+def classify_run(payload, sha):
+    # GitHub lists workflow_runs newest first. A run for a different SHA is not evidence.
+    mismatched = None
+    for run in payload.get("workflow_runs") or []:
+        actual = run.get("head_sha") or ""
+        if actual != sha:
+            if mismatched is None:
+                mismatched = run
+            continue
+        return run, None
+    if mismatched is not None:
+        actual = mismatched.get("head_sha") or "missing"
+        return None, f"bench run head_sha {actual} does not match {sha}"
+    return None, None
 
 
-def poll_speedup(get_json, get_zip, attempts, pause):
+def poll_speedup(get_json, get_zip, attempts, pause, sha):
     last = "bench run not found"
-    for _ in range(attempts):
-        payload = get_json()
-        run = choose_run(payload)
+    for index in range(attempts):
+        run, mismatch = classify_run(get_json(), sha)
+        if mismatch:
+            return None, mismatch
         if run is None:
             last = "bench run not found"
         elif run.get("conclusion") == "success":
-            speedup = speedup_from_zip(get_zip(run["id"]))
+            try:
+                speedup = speedup_from_zip(get_zip(run["id"]))
+            except Exception as error:
+                return None, f"bench artifact unreadable: {error}"
+            if speedup is None:
+                return None, "bench artifact has no warm-mvnd-speedup"
             return speedup, None
         elif run.get("conclusion") in ("failure", "cancelled"):
             return None, f"bench run {run.get('conclusion')}"
         else:
             last = "bench run still in progress"
-        if pause:
+        if pause and index + 1 < attempts:
             pause()
     return None, last
+
+
+def bench_runs_query(repository, sha):
+    if not REPOSITORY_RE.fullmatch(repository or ""):
+        raise ValueError("repository must be owner/name")
+    if not SHA_RE.fullmatch(sha or ""):
+        raise ValueError("bench sha must be 40 hex characters")
+    return (
+        f"https://api.github.com/repos/{repository}/actions/workflows/"
+        f"build-speedup-bench.yml/runs?head_sha={sha}&per_page=5"
+    )
 
 
 def run_maven(commands, cwd):
@@ -547,18 +651,21 @@ def github_bytes(url, token):
         return response.read()
 
 
-def fetch_bench_speedup(repository, sha, token, attempts=30, pause_seconds=20):
+def fetch_bench_speedup(
+    repository, sha, token, attempts=BENCH_POLL_ATTEMPTS, pause_seconds=BENCH_POLL_SECONDS
+):
+    query = bench_runs_query(repository, sha)
     api = f"https://api.github.com/repos/{repository}"
 
     def get_json():
-        return github_json(f"{api}/actions/workflows/build-speedup-bench.yml/runs?head_sha={sha}&per_page=5", token)
+        return github_json(query, token)
 
     def get_zip(run_id):
         listing = github_json(f"{api}/actions/runs/{run_id}/artifacts?per_page=20", token)
         artifact = next(item for item in listing.get("artifacts", []) if item.get("name") == "build-speedup-bench-logs")
         return github_bytes(artifact["archive_download_url"], token)
 
-    return poll_speedup(get_json, get_zip, attempts, lambda: time.sleep(pause_seconds))
+    return poll_speedup(get_json, get_zip, attempts, lambda: time.sleep(pause_seconds), sha)
 
 
 def default_maven_runner(cwd):

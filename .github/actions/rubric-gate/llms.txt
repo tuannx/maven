@@ -50,7 +50,7 @@ Skill: `docs/agents/rubric-gate.md`. Schema: `schema.json` (`schema_version` 2).
 |---|---|
 | contents: read | checkout. Enough for `plan`, `score`, and `merge` |
 | actions: write | job that runs `actions/upload-artifact`. Name the step in the job comment |
-| actions: read | included by `actions: write` on the bench-delta job, which lists `build-speedup-bench` runs when bench sources change |
+| actions: read | bench-delta lists `build-speedup-bench` runs for `RUBRIC_BENCH_SHA` when the bench path filter matches. ADR-0012 |
 
 `contents: write` is not used. `pull-requests: write` is not used.
 

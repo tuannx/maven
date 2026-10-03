@@ -1,0 +1,30 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "artifact": "warm-mvnd-speedup=3.11\n",
+  "missing_sha": "bench path filter matched and GITHUB_TOKEN, GITHUB_REPOSITORY, or RUBRIC_BENCH_SHA is missing",
+  "paths": [
+    "llms.txt"
+  ],
+  "payloads": [
+    {
+      "workflow_runs": [
+        {
+          "conclusion": "success",
+          "head_sha": "10687883fa84d3c2d19de0e326ba08c875457554",
+          "id": 37138710037,
+          "status": "completed"
+        }
+      ]
+    }
+  ],
+  "perf": {
+    "evidence": [
+      "warm-mvnd-speedup 3.11 within band of 3.11"
+    ],
+    "score": 3,
+    "state": "scored"
+  },
+  "polls": 1,
+  "sha": "10687883fa84d3c2d19de0e326ba08c875457554",
+  "sleeps": 0
+}

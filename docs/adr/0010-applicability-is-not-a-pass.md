@@ -19,7 +19,7 @@ under the License.
 
 # ADR-0010 Applicability is not a pass
 
-- status: accepted; the cap at 2 is superseded by ADR-0011
+- status: accepted; the cap at 2 is superseded by ADR-0011. A bench path-filter miss is not_applicable (ADR-0012)
 - date: 2026-10-02
 - decided-by: meta-review of PR #2. Run 36997986388 returned `AUTO_MERGE_OK` because skipped scorers and path heuristics scored 3. Supersedes ADR-0007. Supersedes the unmeasured-product score in ADR-0008. Bench reuse in ADR-0008 stays.
 

@@ -19,7 +19,7 @@ under the License.
 
 # ADR-0008 Bench delta is reused, not re-run
 
-- status: accepted
+- status: accepted; lookup by the merge SHA and the product no_evidence sentence are superseded by ADR-0012
 - date: 2026-10-02
 - decided-by: ADR-0001 and ADR-0003. Baseline warm speedup 3.11 is dogfood run 36996291340. The earlier run on the same reactor was 3.16.
 

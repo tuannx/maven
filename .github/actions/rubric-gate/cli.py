@@ -63,13 +63,22 @@ def maven_runner_for(root):
 
 def bench_inputs(paths, root):
     mode = os.environ.get("RUBRIC_GATE_FETCH_BENCH", "auto")
-    if mode == "never" or not score.intersects_bench(paths):
+    try:
+        matched = score.intersects_bench(paths, score.bench_patterns(root))
+    except ValueError as error:
+        return None, str(error)
+    if mode == "never" or not matched:
         return None, None
     token = os.environ.get("GITHUB_TOKEN", "")
     repository = os.environ.get("GITHUB_REPOSITORY", "")
-    sha = os.environ.get("GITHUB_SHA", "") or git_rev(root, "HEAD")
+    # pull_request: github.event.pull_request.head.sha. push: github.sha.
+    # GITHUB_SHA on pull_request is the merge commit, which never indexes the bench run.
+    sha = os.environ.get("RUBRIC_BENCH_SHA", "").strip()
     if not token or not repository or not sha:
-        return None, "bench sources changed and GITHUB_TOKEN, GITHUB_REPOSITORY, or SHA is missing"
+        return None, (
+            "bench path filter matched and GITHUB_TOKEN, GITHUB_REPOSITORY, "
+            "or RUBRIC_BENCH_SHA is missing"
+        )
     try:
         speedup, error = score.fetch_bench_speedup(repository, sha, token)
     except Exception as error:

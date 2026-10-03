@@ -1,0 +1,13 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "paths": [
+    "api/maven-api-core/src/main/java/A.java",
+    "docs/adr/0001-bench-is-composite-action.md"
+  ],
+  "perf": {
+    "evidence": [
+      "bench workflow path filter did not match"
+    ],
+    "state": "not_applicable"
+  }
+}

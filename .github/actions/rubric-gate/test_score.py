@@ -21,11 +21,20 @@
 
 """Scorer plans, density, format, and bench delta."""
 
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
+import cli
 import score
+
+
+# Run 37138710060 queried the merge SHA and missed the bench run stored on the head SHA.
+HEAD_SHA = "10687883fa84d3c2d19de0e326ba08c875457554"
+MERGE_SHA = "4e4978c17149387c6251c1a32a937d6c7ff02342"
+BENCH_GOLDEN = Path(__file__).with_name("testdata") / "bench"
 
 
 class ScoreTest(unittest.TestCase):
@@ -112,15 +121,16 @@ class ScoreTest(unittest.TestCase):
     def test_product_diff_does_not_wait_for_bench(self):
         scored, status = score.evaluate_bench(["api/maven-api-core/src/main/java/A.java"], None, None)
         self.assertEqual(status, "skipped")
-        self.assertEqual(scored["state"], "no_evidence")
-        self.assertLessEqual(scored["score"], 2)
-        self.assertIn("did not run", scored["evidence"][0])
+        self.assertEqual(scored["state"], "not_applicable")
+        self.assertNotIn("score", scored)
+        self.assertEqual(scored["evidence"], [score.BENCH_FILTER_MISS])
 
     def test_docs_diff_bench_is_not_applicable(self):
         scored, status = score.evaluate_bench(["docs/adr/0001.md"], None, None)
         self.assertEqual(status, "skipped")
         self.assertEqual(scored["state"], "not_applicable")
         self.assertNotIn("score", scored)
+        self.assertEqual(scored["evidence"], [score.BENCH_FILTER_MISS])
 
     def test_bench_source_uses_fetched_speedup(self):
         path = ".github/actions/build-speedup-bench/run-bench.sh"
@@ -132,10 +142,19 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(scored["score"], 2)
         self.assertEqual(status, "failed")
 
-    def test_parse_speedup_and_newest_run(self):
+    def test_parse_speedup_and_newest_matching_run(self):
         self.assertEqual(score.parse_speedup("warm-mvnd-speedup=3.11\n"), 3.11)
         self.assertIsNone(score.parse_speedup("warm-mvnd-speedup=\n"))
-        run = score.choose_run({"workflow_runs": [{"id": 2, "conclusion": "success"}, {"id": 1}]})
+        run, mismatch = score.classify_run(
+            {
+                "workflow_runs": [
+                    {"id": 2, "head_sha": HEAD_SHA, "conclusion": "success"},
+                    {"id": 1, "head_sha": HEAD_SHA},
+                ]
+            },
+            HEAD_SHA,
+        )
+        self.assertIsNone(mismatch)
         self.assertEqual(run["id"], 2)
 
     def test_poll_stops_on_success_without_extra_sleep(self):
@@ -143,15 +162,26 @@ class ScoreTest(unittest.TestCase):
 
         def get_json():
             calls["n"] += 1
-            return {"workflow_runs": [{"id": 9, "conclusion": "success", "status": "completed"}]}
+            return {
+                "workflow_runs": [
+                    {"id": 9, "head_sha": HEAD_SHA, "conclusion": "success", "status": "completed"}
+                ]
+            }
 
         def get_zip(_run_id):
             return _zip_with_output("warm-mvnd-speedup=3.20\n")
 
-        speedup, error = score.poll_speedup(get_json, get_zip, attempts=3, pause=lambda: calls.__setitem__("slept", True))
+        speedup, error = score.poll_speedup(
+            get_json, get_zip, attempts=3, pause=lambda: calls.__setitem__("slept", True), sha=HEAD_SHA
+        )
         self.assertEqual(speedup, 3.20)
         self.assertIsNone(error)
         self.assertNotIn("slept", calls)
+
+    def test_poll_bound_is_shorter_than_the_ten_minute_miss(self):
+        waits = (score.BENCH_POLL_ATTEMPTS - 1) * score.BENCH_POLL_SECONDS
+        self.assertLess(waits, 30 * 20)
+        self.assertGreaterEqual(waits, 180)
 
 
 def _zip_with_output(text):
@@ -225,6 +255,168 @@ class DiscoverTmpTest(unittest.TestCase):
             (root / "api" / "maven-api-core" / "src" / "it" / "pom.xml").write_text("<project/>", encoding="utf-8")
             modules = score.discover_modules(root)
             self.assertEqual(modules, ["api/maven-api-core", "api"])
+
+
+def _golden(name):
+    document = json.loads((BENCH_GOLDEN / name).read_text(encoding="utf-8"))
+    comment = document.pop("$comment")
+    if "Licensed to the Apache Software Foundation" not in comment:
+        raise AssertionError(name)
+    return document
+
+
+def _replay(golden):
+    calls = {"polls": 0, "sleeps": 0, "zips": 0}
+    payloads = golden.get("payloads") or []
+
+    def get_json():
+        calls["polls"] += 1
+        if payloads:
+            return payloads[min(calls["polls"] - 1, len(payloads) - 1)]
+        return golden["repeat_payload"]
+
+    def get_zip(_run_id):
+        calls["zips"] += 1
+        return _zip_with_output(golden["artifact"])
+
+    speedup, error = score.poll_speedup(
+        get_json,
+        get_zip,
+        score.BENCH_POLL_ATTEMPTS,
+        lambda: calls.__setitem__("sleeps", calls["sleeps"] + 1),
+        golden["sha"],
+    )
+    scored, status = score.evaluate_bench(golden["paths"], speedup, error)
+    return scored, status, calls
+
+
+class BenchGoldenTest(unittest.TestCase):
+    def test_workflow_path_filter_is_the_bench_workflow(self):
+        patterns = score.bench_patterns()
+        self.assertEqual(
+            patterns,
+            (
+                ".github/workflows/build-speedup-bench.yml",
+                ".github/actions/build-speedup-bench/**",
+                "llms.txt",
+            ),
+        )
+        self.assertTrue(score.intersects_bench(["llms.txt"]))
+        self.assertTrue(score.intersects_bench([".github/actions/build-speedup-bench/run-bench.sh"]))
+        self.assertFalse(score.intersects_bench(["docs/llms.txt"]))
+        self.assertFalse(score.intersects_bench(["api/maven-api-core/src/main/java/A.java"]))
+
+    def test_runs_query_uses_head_sha(self):
+        url = score.bench_runs_query("tuannx/maven", HEAD_SHA)
+        self.assertIn(f"head_sha={HEAD_SHA}", url)
+        self.assertNotIn(MERGE_SHA, url)
+
+    def test_filter_miss_is_not_applicable_and_does_not_poll(self):
+        golden = _golden("filter-miss.json")
+        self.assertFalse(score.intersects_bench(golden["paths"]))
+        scored, status = score.evaluate_bench(golden["paths"], None, None)
+        self.assertEqual(status, "skipped")
+        self.assertEqual(scored, golden["perf"])
+        self.assertNotIn("score", scored)
+        with _bench_env():
+            os.environ["RUBRIC_GATE_FETCH_BENCH"] = "auto"
+            os.environ["GITHUB_TOKEN"] = "token"
+            os.environ["GITHUB_REPOSITORY"] = "tuannx/maven"
+            os.environ["GITHUB_SHA"] = MERGE_SHA
+            os.environ["RUBRIC_BENCH_SHA"] = HEAD_SHA
+            calls = {"n": 0}
+
+            def fetch(*_args):
+                calls["n"] += 1
+                return 3.11, None
+
+            original = score.fetch_bench_speedup
+            score.fetch_bench_speedup = fetch
+            try:
+                speedup, error = cli.bench_inputs(golden["paths"], Path(__file__).resolve().parents[3])
+            finally:
+                score.fetch_bench_speedup = original
+        self.assertEqual((speedup, error, calls["n"]), (None, None, 0))
+
+    def test_filter_hit_reads_the_speedup(self):
+        golden = _golden("filter-hit.json")
+        scored, status, calls = _replay(golden)
+        self.assertEqual(status, "ok")
+        self.assertEqual(scored, golden["perf"])
+        self.assertEqual(scored["score"], 3)
+        self.assertEqual(calls, {"polls": golden["polls"], "sleeps": golden["sleeps"], "zips": 1})
+
+    def test_bounded_wait_records_no_evidence(self):
+        golden = _golden("wait-exhausted.json")
+        scored, status, calls = _replay(golden)
+        self.assertEqual(status, "failed")
+        self.assertEqual(scored, golden["perf"])
+        self.assertNotEqual(scored["score"], 3)
+        self.assertEqual(calls["polls"], score.BENCH_POLL_ATTEMPTS)
+        self.assertEqual(calls["sleeps"], score.BENCH_POLL_ATTEMPTS - 1)
+        self.assertEqual(calls["zips"], 0)
+
+    def test_merge_sha_evidence_does_not_score_three(self):
+        golden = _golden("sha-mismatch.json")
+        scored, status, calls = _replay(golden)
+        self.assertEqual(status, "failed")
+        self.assertEqual(scored, golden["perf"])
+        self.assertNotEqual(scored["score"], 3)
+        self.assertLessEqual(scored["score"], 2)
+        self.assertEqual(calls, {"polls": 1, "sleeps": 0, "zips": 0})
+        self.assertIn(MERGE_SHA, scored["evidence"][0])
+        self.assertIn(HEAD_SHA, scored["evidence"][0])
+
+    def test_github_sha_is_not_the_bench_lookup(self):
+        golden = _golden("filter-hit.json")
+        with _bench_env():
+            os.environ["RUBRIC_GATE_FETCH_BENCH"] = "auto"
+            os.environ["GITHUB_TOKEN"] = "token"
+            os.environ["GITHUB_REPOSITORY"] = "tuannx/maven"
+            os.environ["GITHUB_SHA"] = MERGE_SHA
+            seen = {}
+
+            def fetch(_repository, sha, _token):
+                seen["sha"] = sha
+                return 3.11, None
+
+            original = score.fetch_bench_speedup
+            score.fetch_bench_speedup = fetch
+            try:
+                speedup, error = cli.bench_inputs(golden["paths"], Path(__file__).resolve().parents[3])
+                self.assertEqual(error, golden["missing_sha"])
+                self.assertIsNone(speedup)
+                self.assertNotIn("sha", seen)
+                os.environ["RUBRIC_BENCH_SHA"] = HEAD_SHA
+                speedup, error = cli.bench_inputs(golden["paths"], Path(__file__).resolve().parents[3])
+            finally:
+                score.fetch_bench_speedup = original
+        self.assertEqual(speedup, 3.11)
+        self.assertIsNone(error)
+        self.assertEqual(seen["sha"], HEAD_SHA)
+        self.assertNotEqual(seen["sha"], MERGE_SHA)
+
+
+class _bench_env:
+    def __enter__(self):
+        self.saved = {
+            key: os.environ.get(key)
+            for key in (
+                "RUBRIC_GATE_FETCH_BENCH",
+                "GITHUB_TOKEN",
+                "GITHUB_REPOSITORY",
+                "GITHUB_SHA",
+                "RUBRIC_BENCH_SHA",
+            )
+        }
+        return self
+
+    def __exit__(self, *_args):
+        for key, value in self.saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 if __name__ == "__main__":

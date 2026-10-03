@@ -77,6 +77,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
+        RUBRIC_BENCH_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         RUBRIC_COMMAND: ${{ inputs.command }}
         RUBRIC_SCORER: ${{ inputs.scorer }}
         RUBRIC_BASE: ${{ inputs.base }}

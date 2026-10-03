@@ -7,7 +7,7 @@
       "evidence": [
         "paths referenced from AGENTS.md and llms.txt resolve",
         "skill mirrors match docs/agents (fast-maven-loop, rubric-gate, write-adr)",
-        "11 ADR files match docs/adr/template.md",
+        "12 ADR files match docs/adr/template.md",
         "no new action.yml",
         "no workflow file in the diff"
       ],
@@ -47,7 +47,7 @@
     },
     "perf": {
       "evidence": [
-        "no bench sources in the diff"
+        "bench workflow path filter did not match"
       ],
       "state": "not_applicable"
     },
@@ -119,7 +119,7 @@
     },
     "bench-delta": {
       "evidence": [
-        "no bench sources in the diff"
+        "bench workflow path filter did not match"
       ],
       "status": "skipped"
     },
