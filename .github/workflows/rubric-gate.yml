@@ -16,8 +16,6 @@
 # under the License.
 
 # Report-only. Jobs exit 0 when the verdict is AUTO_FIX or ESCALATE.
-# pull_request branches include the stacked bench branch so this PR runs
-# before that branch merges to master.
 
 name: rubric-gate
 
@@ -26,7 +24,6 @@ on:
   pull_request:
     branches:
       - master
-      - cursor/build-speedup-bench-1127
 
 permissions:
   contents: read
@@ -40,8 +37,6 @@ jobs:
     name: affected-build
     permissions:
       contents: read
-      # Step Upload affected-build result calls actions/upload-artifact.
-      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -96,8 +91,6 @@ jobs:
     name: japicmp
     permissions:
       contents: read
-      # Step Upload japicmp result calls actions/upload-artifact.
-      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -152,8 +145,6 @@ jobs:
     name: spotless
     permissions:
       contents: read
-      # Step Upload spotless result calls actions/upload-artifact.
-      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -208,8 +199,6 @@ jobs:
     name: comment-density
     permissions:
       contents: read
-      # Step Upload comment-density result calls actions/upload-artifact.
-      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -244,9 +233,6 @@ jobs:
     name: bench-delta
     permissions:
       contents: read
-      # actions: write uploads the scorer JSON. It also covers read for listing
-      # build-speedup-bench runs in step Score bench delta when bench sources change.
-      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -290,7 +276,6 @@ jobs:
     if: always()
     permissions:
       contents: read
-      # Step Upload verdict.json calls actions/upload-artifact.
       actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
