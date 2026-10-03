@@ -1,0 +1,153 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "docs-base",
+  "blocking": false,
+  "dimensions": {
+    "architecture": {
+      "evidence": [
+        "paths referenced from AGENTS.md and llms.txt resolve",
+        "skill mirrors match docs/agents (fast-maven-loop, rubric-gate, write-adr)",
+        "12 ADR files match docs/adr/template.md",
+        "no new action.yml",
+        "no workflow file in the diff"
+      ],
+      "score": 3,
+      "state": "scored"
+    },
+    "clarity": {
+      "evidence": [
+        "no applicable clarity signal"
+      ],
+      "state": "not_applicable"
+    },
+    "compat": {
+      "evidence": [
+        "no japicmp module and no api signature line in the diff"
+      ],
+      "state": "not_applicable"
+    },
+    "correctness": {
+      "evidence": [
+        "no product modules in the diff"
+      ],
+      "state": "not_applicable"
+    },
+    "determinism": {
+      "evidence": [
+        "no added Python"
+      ],
+      "state": "not_applicable"
+    },
+    "intent": {
+      "evidence": [
+        "scope agent-contract covers 2 paths"
+      ],
+      "score": 3,
+      "state": "scored"
+    },
+    "perf": {
+      "evidence": [
+        "bench workflow path filter did not match"
+      ],
+      "state": "not_applicable"
+    },
+    "security": {
+      "evidence": [
+        "secret, contents: write, and third-party push rules passed"
+      ],
+      "score": 3,
+      "state": "scored"
+    },
+    "tests": {
+      "evidence": [
+        "no product modules in the diff"
+      ],
+      "state": "not_applicable"
+    }
+  },
+  "hard_rules": [
+    {
+      "evidence": "no secret pattern on added lines",
+      "id": "secrets",
+      "passed": true
+    },
+    {
+      "evidence": "no added contents: write",
+      "id": "contents-write",
+      "passed": true
+    },
+    {
+      "evidence": "no push or pr create toward apache/maven",
+      "id": "third-party-push",
+      "passed": true
+    },
+    {
+      "evidence": "workflow has no contents: write and no exit 1",
+      "id": "report-only",
+      "passed": true
+    },
+    {
+      "evidence": "rubric-gate unit tests exit 0",
+      "id": "gate-unit-tests",
+      "passed": true
+    },
+    {
+      "evidence": "no no_evidence dimension",
+      "id": "no-evidence-risky",
+      "passed": true
+    },
+    {
+      "evidence": "architecture and intent are scored",
+      "id": "structure-measured",
+      "passed": true
+    }
+  ],
+  "head_sha": "docs-head",
+  "llm_hook": {
+    "enabled": false,
+    "notes": [],
+    "status": "disabled"
+  },
+  "loop": 0,
+  "schema_version": 2,
+  "scorers": {
+    "affected-build": {
+      "evidence": [
+        "no product modules in the diff"
+      ],
+      "status": "skipped"
+    },
+    "bench-delta": {
+      "evidence": [
+        "bench workflow path filter did not match"
+      ],
+      "status": "skipped"
+    },
+    "comment-density": {
+      "evidence": [
+        "no added source lines"
+      ],
+      "status": "skipped"
+    },
+    "japicmp": {
+      "evidence": [
+        "no japicmp module and no api signature line in the diff"
+      ],
+      "status": "skipped"
+    },
+    "spotless": {
+      "evidence": [
+        "no java or xml in the diff"
+      ],
+      "status": "skipped"
+    }
+  },
+  "tie_break": [
+    "adr",
+    "stated_priorities",
+    "existing_code_pattern",
+    "prior_verdict",
+    "simpler_reversible"
+  ],
+  "verdict": "AUTO_MERGE_OK"
+}
