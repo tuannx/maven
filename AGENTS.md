@@ -64,7 +64,7 @@ Full verify is `.github/workflows/maven.yml` (`./mvnw verify`), not the edit loo
 
 ## Rubric
 
-Report-only. Dimensions: correctness, intent, compat, security, perf, architecture, clarity, determinism, tests. Each is `scored` (0-3), `not_applicable` (excluded), or `no_evidence` (at most 2). `no_evidence` on a risky path is `ESCALATE`. Unmeasured architecture or intent is `ESCALATE`. `AUTO_MERGE_OK` when every applicable score is 3. `AUTO_FIX` when an applicable score is 1 or 2 and `loop` is under 2. Otherwise `ESCALATE`. Architecture and intent are measured from `docs/adr/boundaries.yml` (ADR-0011). `blocking` is false.
+Report-only. Dimensions: correctness, intent, compat, security, perf, architecture, clarity, determinism, tests. Each is `scored` (0-3), `not_applicable` (excluded), or `no_evidence` (at most 2). `no_evidence` on a risky path is `ESCALATE`. Unmeasured architecture or intent is `ESCALATE`. `AUTO_MERGE_OK` when every applicable score is 3. `AUTO_FIX` when an applicable score is 1 or 2 and `loop` is under 2. Otherwise `ESCALATE`. Architecture and intent are measured from `docs/adr/boundaries.yml` (ADR-0011). Code under `docs/` or `.cursor/`, a committed `verdict.json`, a deleted or edited test assertion, or a speedup claim without a bench run is `ESCALATE` (ADR-0013). A `scope:` line that leaves a path out scores intent 1. `blocking` is false.
 
 Procedure: `docs/agents/rubric-gate.md`.
 
