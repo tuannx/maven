@@ -21,7 +21,10 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches:
+      - master
+      # Proof pull requests target this branch so the filter in this file is the one that runs.
+      - cursor/maven-ci-path-filter-1127
 
 # allow single build per branch or PR
 concurrency:
@@ -45,7 +48,28 @@ env:
   # MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
 
 jobs:
+  # Docs, agent-contract, and ADR markdown skip ./mvnw verify. ADR-0012.
+  # A push, any other path, or an unreadable diff still verifies.
+  # rubric-gate is a separate workflow and is not gated here.
+  path-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      verify: ${{ steps.decide.outputs.verify }}
+    steps:
+      - name: Checkout maven
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Decide whether to verify
+        id: decide
+        shell: bash
+        run: python3 .github/ci-verify-paths.py
+
   initial-build:
+    needs: path-filter
+    if: needs.path-filter.result == 'success' && needs.path-filter.outputs.verify == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Set up JDK
