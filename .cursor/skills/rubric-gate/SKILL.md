@@ -122,4 +122,4 @@ A dimension requires `state` (`scored`, `not_applicable`, `no_evidence`) and `ev
 
 ## CI
 
-`.github/workflows/rubric-gate.yml` runs the five scorers in parallel, then merges. The check stays green. Java CI remains the blocking build.
+`.github/workflows/rubric-gate.yml` runs the five scorers in parallel, then merges. The check stays green. Java CI remains the blocking build. Each scorer deletes `.github/actions/rubric-gate` and checks out that directory from `pull_request.base.sha` before it imports the gate (ADR-0025). The tighten job exits 1 when that tree has no `tighten.py`.

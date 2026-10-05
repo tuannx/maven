@@ -24,7 +24,7 @@ Personal fork. Do not open pull requests or comments on apache/maven. Do not cre
 | path | role |
 |---|---|
 | [AGENTS.md](AGENTS.md) | coding-agent contract: build, principles, rubric, ADR rule |
-| [docs/adr/](docs/adr/template.md) | ADR-0001..0014, [ADR-0014](docs/adr/0014-replay-gate-fixtures.md), [ADR-0024](docs/adr/0024-score-pull-request-base-sha.md), [ADR-0028](docs/adr/0028-doctrine-advisory-cannot-auto-merge.md), [ADR-0029](docs/adr/0029-same-head-spotless.md), [ADR-0030](docs/adr/0030-decision-edit-cannot-auto-merge.md), [ADR-0031](docs/adr/0031-tighten-missing-is-verdict-evidence.md), [boundaries.yml](docs/adr/boundaries.yml), and the template |
+| [docs/adr/](docs/adr/template.md) | ADR-0001..0014, [ADR-0014](docs/adr/0014-replay-gate-fixtures.md), [ADR-0020](docs/adr/0020-gate-runs-from-base.md), [ADR-0024](docs/adr/0024-score-pull-request-base-sha.md), [ADR-0025](docs/adr/0025-clean-base-gate-checkout.md), [ADR-0028](docs/adr/0028-doctrine-advisory-cannot-auto-merge.md), [ADR-0029](docs/adr/0029-same-head-spotless.md), [ADR-0030](docs/adr/0030-decision-edit-cannot-auto-merge.md), [ADR-0031](docs/adr/0031-tighten-missing-is-verdict-evidence.md), [boundaries.yml](docs/adr/boundaries.yml), and the template |
 | [docs/agents/rubric-gate.md](docs/agents/rubric-gate.md) | rubric-gate skill |
 | [docs/agents/write-adr.md](docs/agents/write-adr.md) | write-adr skill |
 | [docs/agents/fast-maven-loop.md](docs/agents/fast-maven-loop.md) | fast-maven-loop skill |
