@@ -271,7 +271,26 @@ jobs:
       - name: Checkout maven
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Select reactor scope
+        id: reactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if command -v python3 >/dev/null 2>&1; then
+              PY=python3
+            else
+              PY=python
+            fi
+            if git fetch --no-tags origin "${{ github.base_ref }}" \
+              && "$PY" .github/affected-modules.py --base "origin/${{ github.base_ref }}" --github-output "$GITHUB_OUTPUT"; then
+              exit 0
+            fi
+          fi
+          echo "mode=full" >> "$GITHUB_OUTPUT"
 
       - name: Prepare Mimir for Maven 4.x
         shell: bash
@@ -319,8 +338,21 @@ jobs:
           echo "$PWD/maven-local/bin" >> $GITHUB_PATH
 
       - name: Build Maven and ITs and run them
+        if: steps.reactor.outputs.mode != 'affected'
         shell: bash
         run: mvn install -e -B -V -Prun-its,mimir
+
+      - name: Test affected modules
+        if: steps.reactor.outputs.mode == 'affected'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v python3 >/dev/null 2>&1; then
+            PY=python3
+          else
+            PY=python
+          fi
+          "$PY" .github/affected-modules.py --base "origin/${{ github.base_ref }}" --execute
 
       - name: Upload Mimir caches
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
