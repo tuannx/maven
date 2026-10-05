@@ -114,18 +114,14 @@ public abstract class AbstractMavenIntegrationTestCase {
             throw new IOException("shared fixture is missing: " + source);
         }
         String method = testName == null ? "setup" : testName;
-        String key = getClass().getName()
-                + "."
-                + method
-                + "."
-                + Integer.toUnsignedString(System.identityHashCode(this));
+        String key = getClass().getName() + "." + method;
         Path dest = sharedRoot
                 .resolveSibling("it-fixtures")
                 .resolve(key)
                 .resolve(resourcePath)
                 .toAbsolutePath();
         if (Files.exists(dest)) {
-            deleteTree(dest);
+            throw new IOException("shared fixture collision for " + key + ": " + dest);
         }
         copyFixtureTree(source, dest);
         isolatedFixtures.put(resourcePath, dest);

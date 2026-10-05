@@ -29,7 +29,7 @@ under the License.
 
 ## Decision
 
-`mng-0095` is copied into `it-fixtures/<test class>.<test method>.<instance>/mng-0095` for each test instance. A second call from the same instance returns that copy. Every other resource path still returns the shared directory. The shared `target/test-classes/mng-0095` tree is not modified.
+`mng-0095` is copied into `it-fixtures/<test class>.<test method>/mng-0095`. The directory name is the class and the JUnit method, with no per-run hash. A second call from the same instance returns that copy. A second instance with the same class and method throws `shared fixture collision` instead of picking another directory. Every other resource path still returns the shared directory. The shared `target/test-classes/mng-0095` tree is not modified.
 
 ## Options
 

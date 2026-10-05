@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SharedFixtureIsolationTest extends AbstractMavenIntegrationTestCase {
@@ -54,15 +55,27 @@ class SharedFixtureIsolationTest extends AbstractMavenIntegrationTestCase {
             assertEquals("<project/>", Files.readString(source.resolve("pom.xml")));
             assertFalse(Files.exists(source.resolve("marker.txt")));
             assertTrue(first.endsWith("mng-0095"));
+            String key = getClass().getName() + ".mng0095CopyIsPrivateToThisTest";
+            assertEquals(
+                    root.getParent().resolve("it-fixtures").resolve(key).resolve("mng-0095").toAbsolutePath(),
+                    first);
 
             Path untouched = extractResources("test-resource");
             assertEquals(root.resolve("test-resource").toAbsolutePath(), untouched);
 
             SharedFixtureIsolationTest other = new SharedFixtureIsolationTest();
             Path otherDir = other.extractResources("mng-0095");
+            String setupKey = getClass().getName() + ".setup";
+            assertEquals(
+                    root.getParent().resolve("it-fixtures").resolve(setupKey).resolve("mng-0095").toAbsolutePath(),
+                    otherDir);
             assertNotEquals(first, otherDir);
             assertEquals("<project/>", Files.readString(otherDir.resolve("pom.xml")));
             assertFalse(Files.exists(otherDir.resolve("marker.txt")));
+
+            SharedFixtureIsolationTest collision = new SharedFixtureIsolationTest();
+            IOException thrown = assertThrows(IOException.class, () -> collision.extractResources("mng-0095"));
+            assertTrue(thrown.getMessage().contains("shared fixture collision for " + setupKey));
         } finally {
             if (previous == null) {
                 System.clearProperty("maven.test.tmpdir");
