@@ -65,7 +65,17 @@ jobs:
       - name: Decide whether to verify
         id: decide
         shell: bash
-        run: python3 .github/ci-verify-paths.py
+        env:
+          BASE_REF: ${{ github.base_ref || 'master' }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          if git cat-file -e "origin/${BASE_REF}:.github/ci-verify-paths.py"; then
+            git show "origin/${BASE_REF}:.github/ci-verify-paths.py" > /tmp/ci-verify-paths.py
+            python3 /tmp/ci-verify-paths.py
+          else
+            echo "verify=true" >> "$GITHUB_OUTPUT"
+          fi
 
   initial-build:
     needs: path-filter

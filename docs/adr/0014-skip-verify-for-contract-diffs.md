@@ -29,7 +29,7 @@ under the License.
 
 ## Decision
 
-A `path-filter` job runs `.github/ci-verify-paths.py`. `initial-build` runs only when that job sets `verify=true`. The allowlist is `AGENTS.md`, `llms.txt`, `SECURITY.md`, `docs/adr/boundaries.yml`, and `*.md` under `docs/` or `.cursor/skills/`. A push, an empty diff, or a diff git cannot read still verifies. The script reads `GITHUB_BASE_REF` from the environment and rejects a ref that is not a branch name. Code under `docs/` does not match the allowlist, so verify still runs.
+A `path-filter` job runs `.github/ci-verify-paths.py` from the base ref (`git show origin/$BASE_REF:.github/ci-verify-paths.py`), not the pull request copy. If that blob is absent, `verify=true`. `initial-build` runs only when that job sets `verify=true`. The allowlist is `AGENTS.md`, `llms.txt`, `SECURITY.md`, `docs/adr/boundaries.yml`, and `*.md` under `docs/` or `.cursor/skills/`. A push, an empty diff, or a diff git cannot read still verifies. The script reads `GITHUB_BASE_REF` from the environment and rejects a ref that is not a branch name. Code under `docs/` does not match the allowlist, so verify still runs.
 
 ## Options
 

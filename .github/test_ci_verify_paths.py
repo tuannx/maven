@@ -73,6 +73,12 @@ class VerifyPathsTest(unittest.TestCase):
         self.assertTrue(self.mod.verify_required("pull_request", []))
         self.assertTrue(self.mod.verify_required("pull_request", None))
 
+    def test_workflow_runs_the_base_blob(self):
+        text = Path(__file__).resolve().parents[1].joinpath(".github/workflows/maven.yml").read_text(encoding="utf-8")
+        self.assertIn('git show "origin/${BASE_REF}:.github/ci-verify-paths.py"', text)
+        self.assertNotIn("python3 .github/ci-verify-paths.py", text)
+        self.assertIn('echo "verify=true"', text)
+
     def test_base_ref_is_not_a_shell_string(self):
         import os
 
