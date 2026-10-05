@@ -20,4 +20,4 @@
 #
 
 def answer():
-    return 42
+    return missing_redteam_probe
