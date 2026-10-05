@@ -33,6 +33,8 @@ path_groups:
     - apache-maven/
     - pom.xml
     - .mvn/
+  its:
+    - its/
 
 # Reactor tree of the depender, then trees it may depend on.
 # api has no outward reactor edge. Nothing depends on the distribution tree.
