@@ -22,9 +22,15 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
@@ -38,6 +44,10 @@ public abstract class AbstractMavenIntegrationTestCase {
      * Save System.out for progress reports etc.
      */
     private static PrintStream out = System.out;
+
+    private static final String SHARED_FIXTURE = "mng-0095";
+
+    private final Map<String, Path> isolatedFixtures = new HashMap<>();
 
     private String testName;
 
@@ -86,9 +96,62 @@ public abstract class AbstractMavenIntegrationTestCase {
         if (resourcePath.startsWith("/")) {
             resourcePath = resourcePath.substring(1);
         }
-        return Paths.get(System.getProperty("maven.test.tmpdir", System.getProperty("java.io.tmpdir")))
+        Path sharedRoot = Paths.get(
+                System.getProperty("maven.test.tmpdir", System.getProperty("java.io.tmpdir")));
+        if (SHARED_FIXTURE.equals(resourcePath)) {
+            return isolateSharedFixture(sharedRoot, resourcePath);
+        }
+        return sharedRoot.resolve(resourcePath).toAbsolutePath();
+    }
+
+    private Path isolateSharedFixture(Path sharedRoot, String resourcePath) throws IOException {
+        Path cached = isolatedFixtures.get(resourcePath);
+        if (cached != null) {
+            return cached;
+        }
+        Path source = sharedRoot.resolve(resourcePath).toAbsolutePath();
+        if (!Files.isDirectory(source)) {
+            throw new IOException("shared fixture is missing: " + source);
+        }
+        String method = testName == null ? "setup" : testName;
+        String key = getClass().getName()
+                + "."
+                + method
+                + "."
+                + Integer.toUnsignedString(System.identityHashCode(this));
+        Path dest = sharedRoot
+                .resolveSibling("it-fixtures")
+                .resolve(key)
                 .resolve(resourcePath)
                 .toAbsolutePath();
+        if (Files.exists(dest)) {
+            deleteTree(dest);
+        }
+        copyFixtureTree(source, dest);
+        isolatedFixtures.put(resourcePath, dest);
+        return dest;
+    }
+
+    private static void copyFixtureTree(Path source, Path dest) throws IOException {
+        try (Stream<Path> walk = Files.walk(source)) {
+            for (Path from : walk.toList()) {
+                Path to = dest.resolve(source.relativize(from));
+                if (Files.isDirectory(from)) {
+                    Files.createDirectories(to);
+                } else {
+                    Files.createDirectories(to.getParent());
+                    Files.copy(from, to, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
+    }
+
+    private static void deleteTree(Path root) throws IOException {
+        try (Stream<Path> walk = Files.walk(root)) {
+            for (Path path : walk.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
+        }
     }
 
     @Deprecated
