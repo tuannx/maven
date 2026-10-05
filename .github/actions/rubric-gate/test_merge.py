@@ -428,6 +428,151 @@ class MergeTest(unittest.TestCase):
         self.assertFalse(merge.verdict_json_path("testdata/docs-only-verdict.json"))
         self.assertTrue(merge.verdict_json_path("docs/adr/verdict.json"))
 
+    def test_pr_modified_gate_code_is_not_executed(self):
+        import os
+        import shutil
+        import subprocess
+        import sys
+        import tempfile
+
+        case = _load_gaming("gate-self-edit")
+        self.assertIn('Path("gate-self-edit-marker")', case["patch"])
+        self.assertIn('return "AUTO_MERGE_OK"', case["patch"])
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            marker = tmp / "gate-self-edit-marker"
+            repo = tmp / "repo"
+            repo.mkdir()
+
+            def git(*args):
+                subprocess.run(["git", *args], cwd=repo, check=True)
+
+            git("init")
+            git("config", "user.email", "gate@example.com")
+            git("config", "user.name", "gate")
+            action = repo / ".github" / "actions" / "rubric-gate"
+            shutil.copytree(
+                ROOT / ".github" / "actions" / "rubric-gate",
+                action,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+            workflows = repo / ".github" / "workflows"
+            workflows.mkdir(parents=True)
+            shutil.copy(ROOT / ".github" / "workflows" / "rubric-gate.yml", workflows / "rubric-gate.yml")
+            git("add", ".")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "base")
+            base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+            (action / "merge.py").write_text(
+                "from pathlib import Path\n"
+                "def build_verdict(*args, **kwargs):\n"
+                f"    Path({str(marker)!r}).write_text('executed')\n"
+                "    return {'verdict': 'AUTO_MERGE_OK', 'forced_by_pr': True}\n",
+                encoding="utf-8",
+            )
+            git("add", ".")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "pr edits merge.py")
+            run_env = os.environ.copy()
+            run_env["PYTHONPATH"] = str(action)
+            run_env["PYTHONDONTWRITEBYTECODE"] = "1"
+            forced = subprocess.run(
+                [sys.executable, "-c", "import merge; print(merge.build_verdict()['forced_by_pr'])"],
+                cwd=repo,
+                env=run_env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(forced.stdout.strip(), "True")
+            self.assertEqual(marker.read_text(encoding="utf-8"), "executed")
+            marker.unlink()
+            git("checkout", base, "--", ".github/actions/rubric-gate", ".github/workflows/rubric-gate.yml")
+            self.assertNotIn("forced_by_pr", (action / "merge.py").read_text(encoding="utf-8"))
+            script = (
+                "import json, sys\n"
+                "from pathlib import Path\n"
+                "import merge, score\n"
+                "fixture = Path(sys.argv[1])\n"
+                "case = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))\n"
+                "case.pop('$comment', None)\n"
+                "modules = score.discover_modules(fixture)\n"
+                "runner = lambda _commands: (0, 'ok')\n"
+                "paths = case['paths']\n"
+                "patch = case['patch']\n"
+                "results = [\n"
+                "    score.score_affected(paths, modules, runner)[0],\n"
+                "    score.score_japicmp(paths, patch, modules, runner)[0],\n"
+                "    score.score_spotless(paths, patch, modules, runner)[0],\n"
+                "    score.score_comments(patch)[0],\n"
+                "    score.score_bench(paths, None, None, fixture)[0],\n"
+                "]\n"
+                "document = merge.build_verdict(\n"
+                "    results, patch, paths, 'name: rubric-gate\\n',\n"
+                "    case.get('loop', 0), case['head_sha'], case['base_sha'],\n"
+                "    False, '', case.get('unit_test_rc', 0), fixture, case['pr_body'],\n"
+                ")\n"
+                "print(document['verdict'])\n"
+                "print('forced_by_pr' in document)\n"
+            )
+            scored = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    script,
+                    str(action / "testdata" / "repo"),
+                    str(action / "testdata" / "gaming" / "gate-self-edit.json"),
+                ],
+                cwd=repo,
+                env=run_env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertFalse(marker.exists(), scored.stderr)
+            verdict, forced_flag = scored.stdout.strip().splitlines()
+            self.assertEqual(verdict, case["expected_verdict"])
+            self.assertEqual(forced_flag, "False")
+
+    def test_a_case_named_verdict_is_not_a_sidecar(self):
+        import tempfile
+
+        import tighten
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "forged-verdict.json").write_text("{}", encoding="utf-8")
+            (root / "forged-verdict-verdict.json").write_text("{}", encoding="utf-8")
+            (root / "hidden-py-verdict.json").write_text("{}", encoding="utf-8")
+            self.assertFalse(tighten.is_verdict_sidecar(root / "forged-verdict.json"))
+            self.assertTrue(tighten.is_verdict_sidecar(root / "forged-verdict-verdict.json"))
+            self.assertFalse(tighten.is_verdict_sidecar(root / "hidden-py-verdict.json"))
+
+    def test_tighten_rejects_a_looser_verdict(self):
+        import tighten
+
+        self.assertFalse(tighten.loosened("ESCALATE", "ESCALATE"))
+        self.assertFalse(tighten.loosened("ESCALATE", "AUTO_MERGE_OK"))
+        self.assertTrue(tighten.loosened("AUTO_MERGE_OK", "ESCALATE"))
+        self.assertTrue(tighten.loosened("AUTO_FIX", "ESCALATE"))
+        expected = {name: verdict for name, _case, verdict in tighten.fixtures()}
+        self.assertEqual(len(expected), 11)
+        self.assertEqual(expected["gate-self-edit.json"], "AUTO_MERGE_OK")
+
+    def test_workflow_checks_out_the_base_gate(self):
+        text = (ROOT / ".github" / "workflows" / "rubric-gate.yml").read_text(encoding="utf-8")
+        self.assertIn("pull_request_target:", text)
+        self.assertIn("\n  pull_request:\n", text)
+        self.assertIn("workflow-security: gate-from-base", text)
+        self.assertIn('git checkout "$BASE_SHA" -- .github/actions/rubric-gate', text)
+        self.assertIn('git checkout "$BASE_SHA" -- .github/ci-verify-paths.py', text)
+        self.assertNotIn("scan_gate_self_edit", (ROOT / ".github" / "actions" / "rubric-gate" / "merge.py").read_text(encoding="utf-8"))
+        for line in text.splitlines():
+            if "github.event.pull_request" in line:
+                stripped = line.strip()
+                self.assertTrue(
+                    stripped.startswith(("BASE_SHA:", "ref:", "PR_BODY:")),
+                    stripped,
+                )
+
     def test_skill_mirrors(self):
         root = Path(__file__).resolve().parents[3]
         for name in ("rubric-gate", "write-adr", "fast-maven-loop"):

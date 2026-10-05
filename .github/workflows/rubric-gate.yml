@@ -16,17 +16,22 @@
 # under the License.
 
 # Report-only. Jobs exit 0 when the verdict is AUTO_FIX or ESCALATE.
-# pull_request branches include the stacked gate branch so a pull request
-# onto that branch runs this workflow.
 
 name: rubric-gate
 
 on:
   workflow_dispatch:
+  # workflow-security: gate-from-base
+  # pull_request runs this checkout on the merge commit.
+  # pull_request_target runs this file from the base branch once it is on master.
   pull_request:
     branches:
       - master
       - cursor/hermetic-golden-1127
+      - cursor/gate-gaming-redteam-1127
+  pull_request_target:
+    branches:
+      - master
 
 permissions:
   contents: read
@@ -46,14 +51,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch base
+      - name: Score with the base gate
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA"
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          git checkout "$BASE_SHA" -- .github/actions/rubric-gate
+          git checkout "$BASE_SHA" -- .github/workflows/rubric-gate.yml
+          if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
+            git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
+          fi
 
       - name: Plan affected build
         id: plan
@@ -100,14 +115,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch base
+      - name: Score with the base gate
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA"
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          git checkout "$BASE_SHA" -- .github/actions/rubric-gate
+          git checkout "$BASE_SHA" -- .github/workflows/rubric-gate.yml
+          if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
+            git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
+          fi
 
       - name: Plan japicmp
         id: plan
@@ -154,14 +179,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch base
+      - name: Score with the base gate
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA"
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          git checkout "$BASE_SHA" -- .github/actions/rubric-gate
+          git checkout "$BASE_SHA" -- .github/workflows/rubric-gate.yml
+          if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
+            git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
+          fi
 
       - name: Plan spotless
         id: plan
@@ -208,14 +243,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch base
+      - name: Score with the base gate
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA"
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          git checkout "$BASE_SHA" -- .github/actions/rubric-gate
+          git checkout "$BASE_SHA" -- .github/workflows/rubric-gate.yml
+          if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
+            git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
+          fi
 
       - name: Score comment density
         uses: ./.github/actions/rubric-gate
@@ -243,14 +288,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch base
+      - name: Score with the base gate
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA"
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          git checkout "$BASE_SHA" -- .github/actions/rubric-gate
+          git checkout "$BASE_SHA" -- .github/workflows/rubric-gate.yml
+          if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
+            git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
+          fi
 
       - name: Score bench delta
         uses: ./.github/actions/rubric-gate
@@ -269,6 +324,38 @@ jobs:
           if-no-files-found: error
           path: rubric-gate-results/bench-delta.json
 
+  gate-tighten:
+    name: gate-tighten
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Base fixtures against the pull request gate
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA"
+          rm -rf /tmp/pr-gate
+          mkdir -p /tmp/pr-gate
+          cp -a .github/actions/rubric-gate /tmp/pr-gate/rubric-gate
+          git checkout "$BASE_SHA" -- .github/actions/rubric-gate
+          if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
+            git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
+          fi
+          PYTHONDONTWRITEBYTECODE=1 python3 .github/actions/rubric-gate/tighten.py /tmp/pr-gate/rubric-gate
+
   merge:
     name: rubric-gate
     needs:
@@ -286,14 +373,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch base
+      - name: Score with the base gate
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA"
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          git checkout "$BASE_SHA" -- .github/actions/rubric-gate
+          git checkout "$BASE_SHA" -- .github/workflows/rubric-gate.yml
+          if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
+            git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
+          fi
 
       - name: Unit-test rubric gate
         id: unit
