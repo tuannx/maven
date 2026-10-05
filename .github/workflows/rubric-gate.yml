@@ -16,6 +16,8 @@
 # under the License.
 
 # Report-only. Jobs exit 0 when the verdict is AUTO_FIX or ESCALATE.
+# pull_request branches include the stacked gate branch so a pull request
+# onto that branch runs this workflow.
 
 name: rubric-gate
 
@@ -24,6 +26,7 @@ on:
   pull_request:
     branches:
       - master
+      - cursor/hermetic-golden-1127
 
 permissions:
   contents: read

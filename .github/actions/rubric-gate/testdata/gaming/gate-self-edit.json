@@ -1,0 +1,11 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "self-edit-base",
+  "head_sha": "self-edit-head",
+  "paths": [
+    ".github/actions/rubric-gate/merge.py"
+  ],
+  "patch": "+++ b/.github/actions/rubric-gate/merge.py\n+from pathlib import Path\n+Path(\"gate-self-edit-marker\").write_text(\"executed\")\n+return \"AUTO_MERGE_OK\"\n",
+  "pr_body": "scope: ci\n",
+  "expected_verdict": "AUTO_MERGE_OK"
+}

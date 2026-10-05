@@ -84,6 +84,60 @@ def _docs_only_verdict():
     )
 
 
+GAMING = GOLDEN / "gaming"
+GAMING_CASES = (
+    "hidden-py",
+    "hidden-class",
+    "hidden-java",
+    "hidden-jar",
+    "hidden-sh",
+    "lying-scope",
+    "forged-verdict",
+    "tests-weakened",
+    "tests-deleted",
+    "perf-claim",
+    "gate-self-edit",
+)
+
+
+def _load_gaming(name):
+    document = json.loads((GAMING / f"{name}.json").read_text(encoding="utf-8"))
+    document.pop("$comment", None)
+    return document
+
+
+def _gaming_verdict(name):
+    case = _load_gaming(name)
+    modules = score.discover_modules(FIXTURE)
+    if case.get("maven") == "missing":
+        runner = lambda _commands: (None, "mvn not on PATH")
+    else:
+        runner = lambda _commands: (0, "ok")
+    paths = case["paths"]
+    patch = case["patch"]
+    results = [
+        score.score_affected(paths, modules, runner)[0],
+        score.score_japicmp(paths, patch, modules, runner)[0],
+        score.score_spotless(paths, patch, modules, runner)[0],
+        score.score_comments(patch)[0],
+        score.score_bench(paths, None, None, FIXTURE)[0],
+    ]
+    return merge.build_verdict(
+        results,
+        patch,
+        paths,
+        "name: rubric-gate\n",
+        case.get("loop", 0),
+        case["head_sha"],
+        case["base_sha"],
+        False,
+        "",
+        case.get("unit_test_rc", 0),
+        FIXTURE,
+        case["pr_body"],
+    )
+
+
 def _product_code_verdict():
     path = "api/maven-api-core/src/main/java/org/apache/maven/api/Foo.java"
     patch = "+++ b/" + path + "\n+    public void next() {\n+        return;\n+    }\n"
@@ -318,6 +372,61 @@ class MergeTest(unittest.TestCase):
             self.assertIn("Licensed to the Apache Software Foundation", expected.pop("$comment"))
             self.assertEqual(document, expected)
             self.assertEqual(validate.validate(document), [])
+
+    def _expected_verdict(self, name):
+        case = _load_gaming(name)
+        if "expected_verdict" in case:
+            return case["expected_verdict"]
+        expected = json.loads((GAMING / f"{name}-verdict.json").read_text(encoding="utf-8"))
+        return expected["verdict"]
+
+    def test_eleven_fixtures_match_expected_verdicts(self):
+        self.assertEqual(len(GAMING_CASES), 11)
+        marker = ROOT / "gate-self-edit-marker"
+        self.assertFalse(marker.exists())
+        live_adr = structure.check_adrs(ROOT)[1][0]
+        for name in GAMING_CASES:
+            document = _gaming_verdict(name)
+            self.assertEqual(document["verdict"], self._expected_verdict(name), name)
+            self.assertEqual(validate.validate(document), [], name)
+            architecture = " ".join(document["dimensions"]["architecture"]["evidence"])
+            self.assertIn("1 ADR files match docs/adr/template.md", architecture)
+            self.assertNotEqual(live_adr, "1 ADR files match docs/adr/template.md")
+            self.assertNotIn(live_adr, architecture)
+        self.assertFalse(marker.exists())
+
+    def test_gaming_cases_match_goldens(self):
+        allowed = {"lying-scope": "AUTO_FIX"}
+        for name in GAMING_CASES:
+            if name == "gate-self-edit":
+                continue
+            document = _gaming_verdict(name)
+            self.assertEqual(validate.validate(document), [], name)
+            expected_verdict = allowed.get(name, "ESCALATE")
+            self.assertEqual(document["verdict"], expected_verdict, name)
+            self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK", name)
+            expected = json.loads((GAMING / f"{name}-verdict.json").read_text(encoding="utf-8"))
+            self.assertIn("Licensed to the Apache Software Foundation", expected.pop("$comment"))
+            self.assertEqual(document, expected, name)
+
+    def test_added_assertion_is_not_weakened(self):
+        patch = "\n".join(
+            [
+                "diff --git a/.github/actions/rubric-gate/test_merge.py b/.github/actions/rubric-gate/test_merge.py",
+                "--- a/.github/actions/rubric-gate/test_merge.py",
+                "+++ b/.github/actions/rubric-gate/test_merge.py",
+                "+        self.assertEqual(1, 1)",
+            ]
+        )
+        self.assertTrue(merge.scan_tests_weakened(patch)["passed"])
+
+    def test_hidden_code_suffixes_and_markdown(self):
+        self.assertTrue(merge.hidden_code_path("docs/adr/pom.xml"))
+        self.assertTrue(merge.hidden_code_path(".cursor/skills/rubric-gate/evil.java"))
+        self.assertFalse(merge.hidden_code_path("docs/adr/0013-reject-gate-gaming.md"))
+        self.assertFalse(merge.hidden_code_path("api/maven-api-core/src/Foo.java"))
+        self.assertFalse(merge.verdict_json_path("testdata/docs-only-verdict.json"))
+        self.assertTrue(merge.verdict_json_path("docs/adr/verdict.json"))
 
     def test_skill_mirrors(self):
         root = Path(__file__).resolve().parents[3]

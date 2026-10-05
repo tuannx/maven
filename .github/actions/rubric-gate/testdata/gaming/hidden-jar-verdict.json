@@ -1,0 +1,173 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "schema_version": 2,
+  "verdict": "ESCALATE",
+  "blocking": false,
+  "loop": 0,
+  "head_sha": "hidden-jar-head",
+  "base_sha": "hidden-jar-base",
+  "tie_break": [
+    "adr",
+    "stated_priorities",
+    "existing_code_pattern",
+    "prior_verdict",
+    "simpler_reversible"
+  ],
+  "dimensions": {
+    "correctness": {
+      "state": "not_applicable",
+      "evidence": [
+        "no product modules in the diff"
+      ]
+    },
+    "tests": {
+      "state": "not_applicable",
+      "evidence": [
+        "no product modules in the diff"
+      ]
+    },
+    "compat": {
+      "state": "not_applicable",
+      "evidence": [
+        "no japicmp module and no api signature line in the diff"
+      ]
+    },
+    "perf": {
+      "state": "not_applicable",
+      "evidence": [
+        "bench workflow path filter did not match"
+      ]
+    },
+    "clarity": {
+      "state": "not_applicable",
+      "evidence": [
+        "no applicable clarity signal"
+      ]
+    },
+    "security": {
+      "state": "scored",
+      "score": 3,
+      "evidence": [
+        "secret, contents: write, and third-party push rules passed"
+      ]
+    },
+    "intent": {
+      "state": "scored",
+      "score": 3,
+      "evidence": [
+        "scope agent-contract covers 1 paths"
+      ]
+    },
+    "architecture": {
+      "state": "scored",
+      "score": 3,
+      "evidence": [
+        "paths referenced from AGENTS.md and llms.txt resolve",
+        "skill mirrors match docs/agents (fixture-skill)",
+        "1 ADR files match docs/adr/template.md",
+        "no new action.yml",
+        "no workflow file in the diff"
+      ]
+    },
+    "determinism": {
+      "state": "not_applicable",
+      "evidence": [
+        "no added Python"
+      ]
+    }
+  },
+  "hard_rules": [
+    {
+      "id": "secrets",
+      "passed": true,
+      "evidence": "no secret pattern on added lines"
+    },
+    {
+      "id": "contents-write",
+      "passed": true,
+      "evidence": "no added contents: write"
+    },
+    {
+      "id": "third-party-push",
+      "passed": true,
+      "evidence": "no push or pr create toward apache/maven"
+    },
+    {
+      "id": "report-only",
+      "passed": true,
+      "evidence": "workflow has no contents: write and no exit 1"
+    },
+    {
+      "id": "gate-unit-tests",
+      "passed": true,
+      "evidence": "rubric-gate unit tests exit 0"
+    },
+    {
+      "id": "hidden-code",
+      "passed": false,
+      "evidence": "code path under docs or .cursor: .cursor/skills/rubric-gate/payload.jar"
+    },
+    {
+      "id": "forged-verdict",
+      "passed": true,
+      "evidence": "no verdict.json in the diff"
+    },
+    {
+      "id": "tests-weakened",
+      "passed": true,
+      "evidence": "no deleted test file and no removed assertion"
+    },
+    {
+      "id": "perf-claim",
+      "passed": true,
+      "evidence": "no speedup claim in the pull request body"
+    },
+    {
+      "id": "no-evidence-risky",
+      "passed": true,
+      "evidence": "no no_evidence dimension"
+    },
+    {
+      "id": "structure-measured",
+      "passed": true,
+      "evidence": "architecture and intent are scored"
+    }
+  ],
+  "scorers": {
+    "affected-build": {
+      "status": "skipped",
+      "evidence": [
+        "no product modules in the diff"
+      ]
+    },
+    "japicmp": {
+      "status": "skipped",
+      "evidence": [
+        "no japicmp module and no api signature line in the diff"
+      ]
+    },
+    "spotless": {
+      "status": "skipped",
+      "evidence": [
+        "no java or xml in the diff"
+      ]
+    },
+    "comment-density": {
+      "status": "skipped",
+      "evidence": [
+        "no added source lines"
+      ]
+    },
+    "bench-delta": {
+      "status": "skipped",
+      "evidence": [
+        "bench workflow path filter did not match"
+      ]
+    }
+  },
+  "llm_hook": {
+    "enabled": false,
+    "status": "disabled",
+    "notes": []
+  }
+}
