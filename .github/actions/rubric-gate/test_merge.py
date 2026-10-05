@@ -108,7 +108,7 @@ def _load_gaming(name):
 
 def _gaming_verdict(name):
     case = _load_gaming(name)
-    modules = score.discover_modules(ROOT)
+    modules = score.discover_modules(FIXTURE)
     if case.get("maven") == "missing":
         runner = lambda _commands: (None, "mvn not on PATH")
     else:
@@ -120,7 +120,7 @@ def _gaming_verdict(name):
         score.score_japicmp(paths, patch, modules, runner)[0],
         score.score_spotless(paths, patch, modules, runner)[0],
         score.score_comments(patch)[0],
-        score.score_bench(paths, None, None)[0],
+        score.score_bench(paths, None, None, FIXTURE)[0],
     ]
     return merge.build_verdict(
         results,
@@ -133,7 +133,7 @@ def _gaming_verdict(name):
         False,
         "",
         case.get("unit_test_rc", 0),
-        ROOT,
+        FIXTURE,
         case["pr_body"],
     )
 
@@ -384,10 +384,15 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(len(GAMING_CASES), 11)
         marker = ROOT / "gate-self-edit-marker"
         self.assertFalse(marker.exists())
+        live_adr = structure.check_adrs(ROOT)[1][0]
         for name in GAMING_CASES:
             document = _gaming_verdict(name)
             self.assertEqual(document["verdict"], self._expected_verdict(name), name)
             self.assertEqual(validate.validate(document), [], name)
+            architecture = " ".join(document["dimensions"]["architecture"]["evidence"])
+            self.assertIn("1 ADR files match docs/adr/template.md", architecture)
+            self.assertNotEqual(live_adr, "1 ADR files match docs/adr/template.md")
+            self.assertNotIn(live_adr, architecture)
         self.assertFalse(marker.exists())
 
     def test_gaming_cases_match_goldens(self):
