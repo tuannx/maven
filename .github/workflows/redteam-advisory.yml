@@ -1,0 +1,220 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: redteam-advisory
+
+on:
+  pull_request:
+  push:
+    branches: [master, "codex/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: redteam-advisory-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    if: github.repository == 'tuannx/maven'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+      LC_ALL: C
+      TOOL_SHA: 0ee5a2e48f16c5e3274fceb1f6c390a10aaaedb2
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve SHA pair
+        id: pair
+        shell: bash
+        env:
+          EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          base="$EVENT_BASE"
+          if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ]; then
+            base=$(git rev-parse origin/master)
+          fi
+          [[ "$base" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_HEAD" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$base^{commit}"
+          git cat-file -e "$EVENT_HEAD^{commit}"
+          test "$(git rev-parse HEAD)" = "$EVENT_HEAD"
+          mkdir -p redteam-results
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "head=$EVENT_HEAD" >> "$GITHUB_OUTPUT"
+          echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct "$EVENT_HEAD")" >> "$GITHUB_ENV"
+
+      - name: Check private tool distribution
+        id: distribution
+        shell: bash
+        env:
+          REDTEAM_DOCTRINE_TOKEN: ${{ secrets.REDTEAM_DOCTRINE_TOKEN }}
+          OWNER_EVENT: ${{ github.actor == github.repository_owner && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == github.repository_owner)) }}
+          BASE_SHA: ${{ steps.pair.outputs.base }}
+          HEAD_SHA: ${{ steps.pair.outputs.head }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          available = bool(os.environ.get("REDTEAM_DOCTRINE_TOKEN")) and os.environ["OWNER_EVENT"] == "true"
+          reason = "pinned source verification pending" if available else "REDTEAM_DOCTRINE_TOKEN is required on an owner-controlled event"
+          distribution = {"toolSha": os.environ["TOOL_SHA"], "pr": {"baseSha": os.environ["BASE_SHA"], "headSha": os.environ["HEAD_SHA"]}, "advisory": True, "accessConfigured": available, "sourceAvailable": None, "gate": "notRun", "reason": reason, "scores": {"schemaValid": None, "shaBinding": None, "determinism": None, "canaryDetection": None}}
+          pathlib.Path("redteam-results/distribution.json").write_text(json.dumps(distribution, indent=2, sort_keys=True) + "\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"available={str(available).lower()}\n")
+          PY
+
+      - name: Checkout pinned private doctrine
+        if: steps.distribution.outputs.available == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: tuannx/redteam-doctrine
+          ref: 0ee5a2e48f16c5e3274fceb1f6c390a10aaaedb2
+          token: ${{ secrets.REDTEAM_DOCTRINE_TOKEN }}
+          path: .redteam-doctrine
+          persist-credentials: false
+
+      - name: Verify pinned tool source
+        if: steps.distribution.outputs.available == 'true'
+        shell: bash
+        run: test "$(git -C .redteam-doctrine rev-parse HEAD)" = "$TOOL_SHA"
+
+      - name: Start first measurement
+        if: steps.distribution.outputs.available == 'true'
+        shell: bash
+        run: python3 -c 'import pathlib,time; pathlib.Path("redteam-results/first-start.txt").write_text(str(time.perf_counter()))'
+
+      - name: First advisory run
+        if: steps.distribution.outputs.available == 'true'
+        id: first
+        continue-on-error: true
+        uses: ./.redteam-doctrine
+        with:
+          base: ${{ steps.pair.outputs.base }}
+          head: ${{ steps.pair.outputs.head }}
+          verdict-path: redteam-results/first.json
+          comment: "false"
+          python-version: "3.12"
+
+      - name: Finish first and start second measurement
+        if: steps.distribution.outputs.available == 'true'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import time
+          root = pathlib.Path("redteam-results")
+          now = time.perf_counter()
+          root.joinpath("first-seconds.txt").write_text(str(now - float(root.joinpath("first-start.txt").read_text())))
+          root.joinpath("second-start.txt").write_text(str(now))
+          PY
+
+      - name: Second advisory run
+        if: steps.distribution.outputs.available == 'true'
+        id: second
+        continue-on-error: true
+        uses: ./.redteam-doctrine
+        with:
+          base: ${{ steps.pair.outputs.base }}
+          head: ${{ steps.pair.outputs.head }}
+          verdict-path: redteam-results/second.json
+          comment: "false"
+          python-version: "3.12"
+
+      - name: Verify and report measurements
+        if: steps.distribution.outputs.available == 'true'
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.pair.outputs.base }}
+          HEAD_SHA: ${{ steps.pair.outputs.head }}
+          FIRST_OUTCOME: ${{ steps.first.outcome }}
+          SECOND_OUTCOME: ${{ steps.second.outcome }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import platform
+          import subprocess
+          import time
+
+          root = pathlib.Path("redteam-results")
+          durations = [float(root.joinpath("first-seconds.txt").read_text()), time.perf_counter() - float(root.joinpath("second-start.txt").read_text())]
+          expected = {"baseSha": os.environ["BASE_SHA"], "headSha": os.environ["HEAD_SHA"]}
+          runs = []
+          for index, name in enumerate(("first", "second")):
+              path = root / f"{name}.json"
+              normalized_hash = subprocess.check_output(["pr_redteam", "verify", "--verdict", str(path)], text=True).strip()
+              verdict = json.loads(path.read_text())
+              if verdict["pr"] != expected:
+                  raise ValueError(f"{name}: wrong SHA pair")
+              outcome = os.environ[f"{name.upper()}_OUTCOME"]
+              expected_outcome = "failure" if verdict["verdict"] == "block" else "success"
+              if outcome != expected_outcome:
+                  raise ValueError(f"{name}: adapter outcome does not match verdict")
+              if verdict["routing"]["selfMergeEligible"]:
+                  raise ValueError(f"{name}: advisory verdict permits self merge")
+              if verdict["counters"]["protectedPathHits"] and not verdict["routing"]["maintainerReviewRequired"]:
+                  raise ValueError(f"{name}: protected path lacks maintainer routing")
+              runs.append({"name": name, "normalizedHash": normalized_hash, "adapterSeconds": durations[index], "outcome": outcome, "verdict": verdict["verdict"], "counters": verdict["counters"], "checks": verdict["checks"], "routing": verdict["routing"]})
+          if runs[0]["normalizedHash"] != runs[1]["normalizedHash"]:
+              raise ValueError("same SHA pair produced different normalized hashes")
+          metrics = {"repository": os.environ["GITHUB_REPOSITORY"], "runId": os.environ["GITHUB_RUN_ID"], "event": os.environ["GITHUB_EVENT_NAME"], "toolSha": os.environ["TOOL_SHA"], "pr": expected, "advisory": True, "schemaValid": {"passed": 2, "total": 2}, "shaBinding": {"passed": 2, "total": 2}, "determinism": {"matchingPairs": 1, "totalPairs": 1}, "runs": runs, "python": platform.python_version(), "ruff": subprocess.check_output(["ruff", "--version"], text=True).strip(), "ownerStamp": "notRun", "nativeJavaCorrectness": "notRun"}
+          root.joinpath("metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n")
+          distribution = json.loads(root.joinpath("distribution.json").read_text())
+          distribution.update(sourceAvailable=True, gate="ran", reason="pinned source and both verdicts verified", scores={key: metrics[key] for key in ("schemaValid", "shaBinding", "determinism")})
+          distribution["scores"]["canaryDetection"] = None
+          root.joinpath("distribution.json").write_text(json.dumps(distribution, indent=2, sort_keys=True) + "\n")
+          root.joinpath("pip-freeze.txt").write_text(subprocess.check_output(["python3", "-m", "pip", "freeze"], text=True))
+          root.joinpath("report.md").write_text(subprocess.check_output(["pr_redteam", "render", "--verdict", str(root / "first.json")], text=True))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write("### Doctrine advisory measurements\n\n")
+              summary.write(f"Base `{expected['baseSha']}` / head `{expected['headSha']}`\n\n")
+              summary.write("| Run | Verdict | Adapter seconds | Normalized hash |\n|---|---|---:|---|\n")
+              for run in runs:
+                  summary.write(f"| {run['name']} | {run['verdict']} | {run['adapterSeconds']:.3f} | `{run['normalizedHash']}` |\n")
+              summary.write("\nSchema: 2/2; SHA binding: 2/2; matching hash pairs: 1/1. Owner stamp and native Java correctness: notRun.\n")
+          PY
+
+      - name: Require private distribution access
+        if: steps.distribution.outputs.available == 'false'
+        shell: bash
+        run: |
+          echo "::error::Pinned private doctrine was not run. The owner must configure narrowly scoped REDTEAM_DOCTRINE_TOKEN access or approve a distribution alternative."
+          exit 1
+
+      - name: Upload advisory evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: redteam-advisory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: redteam-results/
+          retention-days: 14
+          if-no-files-found: error
