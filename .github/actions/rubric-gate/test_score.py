@@ -68,6 +68,23 @@ class ScoreTest(unittest.TestCase):
         self.assertNotIn("score", body["dimensions"]["correctness"])
         self.assertEqual(body["dimensions"]["tests"]["state"], "not_applicable")
 
+    def test_its_java_requires_maven_evidence(self):
+        path = "its/core-it-support/maven-it-helper/src/main/java/org/apache/maven/it/Foo.java"
+        body, plan = score.score_affected([path], ["api/maven-api-core"], lambda _commands: (None, "mvn not on PATH"))
+        self.assertEqual(plan["reason"], "its-code")
+        self.assertTrue(plan["needs_maven"])
+        self.assertIn("its/pom.xml", plan["commands"][0])
+        self.assertEqual(body["dimensions"]["correctness"]["state"], "no_evidence")
+        self.assertEqual(body["dimensions"]["tests"]["state"], "no_evidence")
+        self.assertNotIn("no product modules in the diff", " ".join(body["evidence"]))
+        markdown, skipped = score.score_affected(
+            ["its/core-it-suite/README.md"],
+            ["api/maven-api-core"],
+            lambda _commands: (0, ""),
+        )
+        self.assertEqual(skipped["reason"], "no-product-modules")
+        self.assertEqual(markdown["dimensions"]["correctness"]["state"], "not_applicable")
+
     def test_root_pom_does_not_rebuild_here(self):
         body, plan = score.score_affected(["pom.xml"], ["api/maven-api-core"], lambda _commands: (0, ""))
         self.assertFalse(plan["needs_maven"])
