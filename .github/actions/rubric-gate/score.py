@@ -56,6 +56,7 @@ SPEEDUP_REGRESSION = 0.15
 # the first response.
 BENCH_POLL_ATTEMPTS = 13
 BENCH_POLL_SECONDS = 20
+BENCH_PENDING = "bench run still in progress"
 BENCH_FILTER_MISS = "bench workflow path filter did not match"
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -407,6 +408,9 @@ def evaluate_bench(paths, speedup, fetch_error):
     if not matched:
         # ADR-0012. The bench workflow did not start, so there is nothing to poll.
         return not_applicable(BENCH_FILTER_MISS), "skipped"
+    if fetch_error == BENCH_PENDING:
+        # ADR-0021. An in-progress run is not a score. Rescore writes it after completion.
+        return {"state": "pending", "evidence": [BENCH_PENDING]}, "pending"
     if fetch_error:
         return no_evidence(fetch_error), "failed"
     if speedup is None:
@@ -467,7 +471,7 @@ def poll_speedup(get_json, get_zip, attempts, pause, sha):
         elif run.get("conclusion") in ("failure", "cancelled"):
             return None, f"bench run {run.get('conclusion')}"
         else:
-            last = "bench run still in progress"
+            last = BENCH_PENDING
         if pause and index + 1 < attempts:
             pause()
     return None, last
