@@ -1,0 +1,75 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Affected module build
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/affected-module-build.yml"
+      - ".github/affected-modules.py"
+      - ".github/test_affected_modules.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: affected-module-build-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  affected-sample:
+    name: affected-module-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Unit-test the selector
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 .github/test_affected_modules.py -v
+
+      - name: Install Maven
+        shell: bash
+        run: bash .github/actions/build-speedup-bench/install-tools.sh maven
+
+      - name: Generate the Maven 4 wrapper
+        shell: bash
+        run: mvn --errors --batch-mode --show-version org.apache.maven.plugins:maven-wrapper-plugin:3.3.4:wrapper "-Dmaven=4.0.0-rc-6"
+
+      - name: Time maven-api-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/affected-modules.py \
+            --paths api/maven-api-core/src/main/java/org/apache/maven/api/Session.java \
+            --maven ./mvnw \
+            --execute
