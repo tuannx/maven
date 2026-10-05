@@ -17,6 +17,7 @@
 
 name: PR Automation
 on:
+  # workflow-security: reusable-workflow-only
   pull_request_target:
     types:
       - closed
