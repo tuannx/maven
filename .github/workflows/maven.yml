@@ -48,7 +48,7 @@ env:
   # MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
 
 jobs:
-  # Docs, agent-contract, and ADR markdown skip ./mvnw verify. ADR-0012.
+  # Docs, agent-contract, and ADR markdown skip ./mvnw verify. ADR-0014.
   # A push, any other path, or an unreadable diff still verifies.
   # rubric-gate is a separate workflow and is not gated here.
   path-filter:

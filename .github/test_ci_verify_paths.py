@@ -19,7 +19,7 @@
 # under the License.
 #
 
-"""Path filter for Java CI. ADR-0012."""
+"""Path filter for Java CI. ADR-0014."""
 
 import importlib.util
 import unittest
@@ -44,7 +44,7 @@ class VerifyPathsTest(unittest.TestCase):
             "AGENTS.md",
             "llms.txt",
             "SECURITY.md",
-            "docs/adr/0012-skip-verify-for-contract-diffs.md",
+            "docs/adr/0014-skip-verify-for-contract-diffs.md",
             "docs/agents/rubric-gate.md",
             ".cursor/skills/rubric-gate/SKILL.md",
             "docs/adr/boundaries.yml",

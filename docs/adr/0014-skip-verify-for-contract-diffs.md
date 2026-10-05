@@ -17,9 +17,9 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# ADR-0012 Skip verify for contract diffs
+# ADR-0014 Skip verify for contract diffs
 
-- status: accepted
+- status: accepted; numbered 0014 so ADR-0012 stays the bench-lookup decision
 - date: 2026-10-03
 - decided-by: Java CI run 37021463700 on master (push of c9f9f2d576, 2026-10-02T14:40:07Z to 2026-10-02T15:24:53Z, 44m46s, success). That workflow has no path filter, so a docs-only pull request pays the same `./mvnw verify`.
 

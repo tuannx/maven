@@ -19,7 +19,7 @@
 # under the License.
 #
 
-"""Decide whether Java CI must run ./mvnw verify. ADR-0012. Stdlib only."""
+"""Decide whether Java CI must run ./mvnw verify. ADR-0014. Stdlib only."""
 
 import os
 import re
