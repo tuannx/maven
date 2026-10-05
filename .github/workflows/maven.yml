@@ -21,7 +21,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, cursor/hermetic-golden-1127 ]
 
 # allow single build per branch or PR
 concurrency:
