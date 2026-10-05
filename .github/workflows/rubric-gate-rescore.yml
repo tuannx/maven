@@ -1,0 +1,67 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# ADR-0021. Score perf once the bench run for this head has finished.
+
+name: rubric-gate-rescore
+
+on:
+  workflow_run:
+    workflows: ["build-speedup-bench"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  rescore:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout the bench head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch base
+        shell: bash
+        env:
+          BASE_REF: ${{ github.event.workflow_run.pull_requests[0].base.ref }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BASE_REF}" ]; then
+            BASE_REF=master
+          fi
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Score the finished bench
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: all
+          base: origin/${{ github.event.workflow_run.pull_requests[0].base.ref || 'master' }}
+
+      - name: Upload verdict.json
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rubric-verdict
+          retention-days: 14
+          if-no-files-found: error
+          path: rubric-gate-results/verdict.json

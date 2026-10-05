@@ -321,6 +321,7 @@ jobs:
           python3 -c 'import json,os,pathlib; raw=os.environ.get("PR_BODY") or "null"; text=json.loads(raw) or ""; pathlib.Path("rubric-gate-results/pr-body.txt").write_text(text)'
 
       - name: Merge verdict
+        id: verdict
         if: always()
         uses: ./.github/actions/rubric-gate
         with:
@@ -329,7 +330,7 @@ jobs:
           unit-test-rc: ${{ steps.unit.outputs.rc }}
 
       - name: Upload verdict.json
-        if: always()
+        if: always() && steps.verdict.outputs.verdict != 'PENDING'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rubric-verdict

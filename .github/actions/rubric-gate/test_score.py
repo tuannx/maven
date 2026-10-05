@@ -364,15 +364,41 @@ class BenchGoldenTest(unittest.TestCase):
         self.assertEqual(scored["score"], 3)
         self.assertEqual(calls, {"polls": golden["polls"], "sleeps": golden["sleeps"], "zips": 1})
 
-    def test_bounded_wait_records_no_evidence(self):
+    def test_bounded_wait_does_not_score_an_in_progress_run(self):
         golden = _golden("wait-exhausted.json")
         scored, status, calls = _replay(golden)
-        self.assertEqual(status, "failed")
+        self.assertEqual(status, "pending")
         self.assertEqual(scored, golden["perf"])
-        self.assertNotEqual(scored["score"], 3)
+        self.assertNotIn("score", scored)
         self.assertEqual(calls["polls"], score.BENCH_POLL_ATTEMPTS)
         self.assertEqual(calls["sleeps"], score.BENCH_POLL_ATTEMPTS - 1)
         self.assertEqual(calls["zips"], 0)
+
+    def test_pending_bench_does_not_write_a_verdict(self):
+        self.assertTrue(cli.perf_deferred([{"status": "pending"}]))
+        self.assertFalse(cli.perf_deferred([{"status": "ok"}]))
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / "bench-delta.json").write_text('{"scorer":"bench-delta","status":"pending","evidence":["bench run still in progress"],"dimensions":{}}\n', encoding="utf-8")
+            args = type("Args", (), {})()
+            args.out = str(out)
+            args.root = str(Path(__file__).resolve().parents[3])
+            args.base = ""
+            args.llm_hook = "false"
+            args.llm_hook_command = ""
+            args.loop = 0
+            args.unit_test_rc = 0
+            args.pr_body_file = ""
+            args.pr_body = None
+            self.assertEqual(cli.command_merge(args, [], ""), 0)
+            self.assertFalse((out / "verdict.json").exists())
+        workflow = Path(__file__).resolve().parents[3] / ".github" / "workflows" / "rubric-gate-rescore.yml"
+        text = workflow.read_text(encoding="utf-8")
+        self.assertIn("workflow_run:", text)
+        self.assertIn("build-speedup-bench", text)
+        self.assertIn("github.event.workflow_run.head_sha", text)
+        action = (Path(__file__).resolve().parents[2] / "actions" / "rubric-gate" / "action.yml").read_text(encoding="utf-8")
+        self.assertIn("github.event.workflow_run.head_sha", action)
 
     def test_merge_sha_evidence_does_not_score_three(self):
         golden = _golden("sha-mismatch.json")
