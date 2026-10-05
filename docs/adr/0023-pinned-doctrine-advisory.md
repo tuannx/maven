@@ -29,7 +29,7 @@ The fork's rubric is report-only. The doctrine's combined staging commit include
 
 ## Decision
 
-Add a separate read-only advisory workflow that uses the exact staging SHA with comments disabled, runs the same base/head pair twice, verifies both schemas and SHA bindings, and publishes hashes, counters, applicability and measured adapter durations.
+Add a separate read-only advisory workflow that checks out the exact private staging SHA only with owner-controlled events and a narrowly scoped `REDTEAM_DOCTRINE_TOKEN`, calls the local Action with comments disabled, runs the same base/head pair twice, and publishes verified hashes, counters, applicability and measured adapter durations. Missing distribution access produces `notRun` with null scores and an actionable failed check.
 
 ## Options
 
@@ -44,6 +44,8 @@ These option scores describe contract fit, not measured runtime or improvement s
 ## Trade-off
 
 Two adapter invocations include setup and package installation overhead. A source BLOCK is recorded without authorizing enforcement; missing, invalid or mismatched evidence still fails the measurement job. Python F821 is the only wired symbol checker. Java, red/green tests, architecture and owner identity verification remain unsupported or notRun in the doctrine verdict. The pinned Action currently calls setup-python at v5 internally; the workflow records the installed environment rather than claiming a fully locked dependency graph.
+
+Public forks cannot directly reuse this private Action. Initial hosted runs fail before steps while resolving the reusable Action. The fallback keeps source private and token persistence disabled; only evidence is uploaded. No secret is provisioned by this proposal. A usable owner-configured read credential remains necessary for hosted measurements.
 
 ## Revisit when
 
