@@ -147,13 +147,37 @@ def root_build_changed(paths):
     return "pom.xml" in paths or ".mvn/maven.config" in paths
 
 
+ITS_CODE_SUFFIXES = (".java", ".kt", ".groovy", ".scala", ".py", ".js", ".ts", ".sh")
+
+
+def its_code_paths(paths):
+    return [
+        path
+        for path in paths
+        if path.startswith("its/") and path.endswith(ITS_CODE_SUFFIXES)
+    ]
+
+
 def plan_affected(paths, modules):
     if root_build_changed(paths):
         return {"needs_maven": False, "commands": [], "reason": "root-build-file"}
     selected = [module for module in select_modules(paths, modules) if module.count("/") >= 1]
-    if not selected:
+    its_paths = its_code_paths(paths)
+    if not selected and not its_paths:
         return {"needs_maven": False, "commands": [], "reason": "no-product-modules"}
-    return {"needs_maven": True, "commands": maven_commands(selected, "test"), "reason": "modules", "modules": selected}
+    commands = maven_commands(selected, "test") if selected else []
+    if its_paths:
+        commands.append(["mvn", "-f", "its/pom.xml", "--batch-mode", "-T", "1C", *SKIP_ARGS, "test"])
+    plan = {
+        "needs_maven": True,
+        "commands": commands,
+        "reason": "modules" if selected else "its-code",
+    }
+    if selected:
+        plan["modules"] = selected
+    if its_paths:
+        plan["its"] = its_paths
+    return plan
 
 
 def plan_japicmp(paths, modules):

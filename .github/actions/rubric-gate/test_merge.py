@@ -80,6 +80,19 @@ def _docs_only_verdict():
     )
 
 
+def _its_code_verdict():
+    path = "its/core-it-support/maven-it-helper/src/main/java/org/apache/maven/it/AbstractMavenIntegrationTestCase.java"
+    patch = "+++ b/" + path + "\n+    private String testName;\n"
+    return _gate_verdict(
+        [path],
+        patch,
+        lambda _commands: (None, "mvn not on PATH"),
+        "its-head",
+        "its-base",
+        "scope: its\n",
+    )
+
+
 def _product_code_verdict():
     path = "api/maven-api-core/src/main/java/org/apache/maven/api/Foo.java"
     patch = "+++ b/" + path + "\n+    public void next() {\n+        return;\n+    }\n"
@@ -308,6 +321,19 @@ class MergeTest(unittest.TestCase):
             self.assertIn("Licensed to the Apache Software Foundation", expected.pop("$comment"))
             self.assertEqual(document, expected)
             self.assertEqual(validate.validate(document), [])
+
+    def test_its_code_requires_java_ci(self):
+        document = _its_code_verdict()
+        self.assertEqual(document["verdict"], "ESCALATE")
+        self.assertEqual(document["dimensions"]["correctness"]["state"], "no_evidence")
+        self.assertEqual(document["dimensions"]["tests"]["state"], "no_evidence")
+        evidence = " ".join(document["dimensions"]["correctness"]["evidence"])
+        self.assertNotIn("no product modules in the diff", evidence)
+        self.assertIn("mvn not on PATH", evidence)
+        expected = json.loads((GOLDEN / "its-code-verdict.json").read_text(encoding="utf-8"))
+        self.assertIn("Licensed to the Apache Software Foundation", expected.pop("$comment"))
+        self.assertEqual(document, expected)
+        self.assertEqual(validate.validate(document), [])
 
     def test_skill_mirrors(self):
         root = Path(__file__).resolve().parents[3]
