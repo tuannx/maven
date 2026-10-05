@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 MARKER = "workflow-security: reusable-workflow-only"
+GATE_FROM_BASE = "workflow-security: gate-from-base"
 EXPRESSION = re.compile(r"\$\{\{(.+?)\}\}")
 UNTRUSTED = (
     "github.head_ref",
@@ -92,7 +93,10 @@ def scan_text(path, text):
             and not run_scripts(text)
             and "actions/checkout" not in text
         )
-        if not reusable_only:
+        gate_from_base = GATE_FROM_BASE in text and not any(
+            untrusted_expressions(script) for script in run_scripts(text)
+        )
+        if not reusable_only and not gate_from_base:
             findings.append(f"{path}: pull_request_target")
     for script in run_scripts(text):
         for expression in untrusted_expressions(script):

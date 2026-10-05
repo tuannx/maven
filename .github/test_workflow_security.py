@@ -48,6 +48,22 @@ class WorkflowSecurityTest(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertIn("github.head_ref", findings[0])
 
+    def test_gate_from_base_may_use_pull_request_target(self):
+        text = (
+            "on:\n  # workflow-security: gate-from-base\n  pull_request_target:\n"
+            "jobs:\n  a:\n    steps:\n"
+            "      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567\n"
+            "        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n"
+            "      - env:\n          BASE_SHA: ${{ github.event.pull_request.base.sha }}\n"
+            "        run: git checkout \"$BASE_SHA\" -- .github/actions/rubric-gate\n"
+        )
+        self.assertEqual(workflow_security.scan_text("rubric-gate.yml", text), [])
+        tainted = text.replace(
+            'run: git checkout \"$BASE_SHA\"',
+            "run: echo ${{ github.event.pull_request.head.sha }}",
+        )
+        self.assertTrue(workflow_security.scan_text("rubric-gate.yml", tainted))
+
     def test_event_data_passed_through_env_is_not_a_finding(self):
         text = "jobs:\n  a:\n    steps:\n      - env:\n          HEAD: ${{ github.head_ref }}\n        run: echo \"$HEAD\"\n"
         self.assertEqual(workflow_security.scan_text("wf.yml", text), [])
