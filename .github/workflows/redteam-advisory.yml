@@ -85,7 +85,7 @@ jobs:
           import pathlib
           available = bool(os.environ.get("REDTEAM_DOCTRINE_TOKEN")) and os.environ["OWNER_EVENT"] == "true"
           reason = "pinned source verification pending" if available else "REDTEAM_DOCTRINE_TOKEN is required on an owner-controlled event"
-          distribution = {"toolSha": os.environ["TOOL_SHA"], "pr": {"baseSha": os.environ["BASE_SHA"], "headSha": os.environ["HEAD_SHA"]}, "advisory": True, "sourceAvailable": available, "gate": "notRun", "reason": reason, "scores": {"schemaValid": None, "shaBinding": None, "determinism": None, "canaryDetection": None}}
+          distribution = {"toolSha": os.environ["TOOL_SHA"], "pr": {"baseSha": os.environ["BASE_SHA"], "headSha": os.environ["HEAD_SHA"]}, "advisory": True, "accessConfigured": available, "sourceAvailable": None, "gate": "notRun", "reason": reason, "scores": {"schemaValid": None, "shaBinding": None, "determinism": None, "canaryDetection": None}}
           pathlib.Path("redteam-results/distribution.json").write_text(json.dumps(distribution, indent=2, sort_keys=True) + "\n")
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write(f"available={str(available).lower()}\n")
@@ -189,7 +189,7 @@ jobs:
           metrics = {"repository": os.environ["GITHUB_REPOSITORY"], "runId": os.environ["GITHUB_RUN_ID"], "event": os.environ["GITHUB_EVENT_NAME"], "toolSha": os.environ["TOOL_SHA"], "pr": expected, "advisory": True, "schemaValid": {"passed": 2, "total": 2}, "shaBinding": {"passed": 2, "total": 2}, "determinism": {"matchingPairs": 1, "totalPairs": 1}, "runs": runs, "python": platform.python_version(), "ruff": subprocess.check_output(["ruff", "--version"], text=True).strip(), "ownerStamp": "notRun", "nativeJavaCorrectness": "notRun"}
           root.joinpath("metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n")
           distribution = json.loads(root.joinpath("distribution.json").read_text())
-          distribution.update(gate="ran", reason="pinned source and both verdicts verified", scores={key: metrics[key] for key in ("schemaValid", "shaBinding", "determinism")})
+          distribution.update(sourceAvailable=True, gate="ran", reason="pinned source and both verdicts verified", scores={key: metrics[key] for key in ("schemaValid", "shaBinding", "determinism")})
           distribution["scores"]["canaryDetection"] = None
           root.joinpath("distribution.json").write_text(json.dumps(distribution, indent=2, sort_keys=True) + "\n")
           root.joinpath("pip-freeze.txt").write_text(subprocess.check_output(["python3", "-m", "pip", "freeze"], text=True))
