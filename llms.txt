@@ -24,7 +24,7 @@ Personal fork. Do not open pull requests or comments on apache/maven. Do not cre
 | path | role |
 |---|---|
 | [AGENTS.md](AGENTS.md) | coding-agent contract: build, principles, rubric, ADR rule |
-| [docs/adr/](docs/adr/template.md) | ADR-0001..0012, [boundaries.yml](docs/adr/boundaries.yml), and the template |
+| [docs/adr/](docs/adr/template.md) | ADR-0001..0012, [ADR-0016](docs/adr/0016-warm-build-cache-without-committing.md), [boundaries.yml](docs/adr/boundaries.yml), and the template |
 | [docs/agents/rubric-gate.md](docs/agents/rubric-gate.md) | rubric-gate skill |
 | [docs/agents/write-adr.md](docs/agents/write-adr.md) | write-adr skill |
 | [docs/agents/fast-maven-loop.md](docs/agents/fast-maven-loop.md) | fast-maven-loop skill |
