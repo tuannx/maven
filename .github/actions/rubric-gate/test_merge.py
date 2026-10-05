@@ -27,6 +27,7 @@ from pathlib import Path
 
 import merge
 import score
+import structure
 import validate
 
 
@@ -34,17 +35,19 @@ GOLDEN = Path(__file__).with_name("testdata")
 
 
 ROOT = Path(__file__).resolve().parents[3]
+# Frozen tree. Live ADR files and workflows must not change these two verdicts.
+FIXTURE = GOLDEN / "repo"
 SCOPE = "scope: agent-contract, ci, product\n"
 
 
-def _gate_verdict(paths, patch, runner, head_sha, base_sha, pr_body):
+def _gate_verdict(paths, patch, runner, head_sha, base_sha, pr_body, root):
     modules = ["api/maven-api-core"]
     results = [
         score.score_affected(paths, modules, runner)[0],
         score.score_japicmp(paths, patch, modules, runner)[0],
         score.score_spotless(paths, patch, modules, runner)[0],
         score.score_comments(patch)[0],
-        score.score_bench(paths, None, None)[0],
+        score.score_bench(paths, None, None, root)[0],
     ]
     return merge.build_verdict(
         results,
@@ -57,7 +60,7 @@ def _gate_verdict(paths, patch, runner, head_sha, base_sha, pr_body):
         False,
         "",
         0,
-        ROOT,
+        root,
         pr_body,
     )
 
@@ -77,6 +80,7 @@ def _docs_only_verdict():
         "docs-head",
         "docs-base",
         "scope: agent-contract\n",
+        FIXTURE,
     )
 
 
@@ -90,6 +94,7 @@ def _product_code_verdict():
         "product-head",
         "product-base",
         "scope: product\n",
+        FIXTURE,
     )
 
 
@@ -291,7 +296,12 @@ class MergeTest(unittest.TestCase):
         self.assertNotIn("score", docs["dimensions"]["correctness"])
         self.assertEqual(docs["dimensions"]["intent"]["score"], 3)
         self.assertEqual(docs["dimensions"]["architecture"]["score"], 3)
-        self.assertIn("docs/adr/template.md", " ".join(docs["dimensions"]["architecture"]["evidence"]))
+        architecture = " ".join(docs["dimensions"]["architecture"]["evidence"])
+        self.assertIn("docs/adr/template.md", architecture)
+        self.assertIn("1 ADR files match docs/adr/template.md", architecture)
+        live_adr = structure.check_adrs(ROOT)[1][0]
+        self.assertNotEqual(live_adr, "1 ADR files match docs/adr/template.md")
+        self.assertNotIn(live_adr, architecture)
         self.assertTrue(next(item["passed"] for item in docs["hard_rules"] if item["id"] == "no-evidence-risky"))
         product = _product_code_verdict()
         self.assertEqual(product["verdict"], "ESCALATE")
