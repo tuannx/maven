@@ -1,0 +1,24 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "paths": [
+    ".github/workflows/build-speedup-bench.yml"
+  ],
+  "perf": {
+    "evidence": [
+      "bench run still in progress"
+    ],
+    "score": 2,
+    "state": "no_evidence"
+  },
+  "repeat_payload": {
+    "workflow_runs": [
+      {
+        "conclusion": null,
+        "head_sha": "10687883fa84d3c2d19de0e326ba08c875457554",
+        "id": 1,
+        "status": "in_progress"
+      }
+    ]
+  },
+  "sha": "10687883fa84d3c2d19de0e326ba08c875457554"
+}

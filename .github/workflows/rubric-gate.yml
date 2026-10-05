@@ -1,0 +1,338 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Report-only. Jobs exit 0 when the verdict is AUTO_FIX or ESCALATE.
+
+name: rubric-gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rubric-gate-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  affected-build:
+    name: affected-build
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch base
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref || 'master' }}
+        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Plan affected build
+        id: plan
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: plan
+          scorer: affected-build
+          base: origin/${{ github.base_ref || 'master' }}
+
+      - name: Set up JDK
+        if: steps.plan.outputs.needs_maven == 'true'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Install Maven
+        if: steps.plan.outputs.needs_maven == 'true'
+        shell: bash
+        run: bash .github/actions/build-speedup-bench/install-tools.sh maven
+
+      - name: Score affected build
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: score
+          scorer: affected-build
+          base: origin/${{ github.base_ref || 'master' }}
+
+      - name: Upload affected-build result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rubric-affected-build
+          retention-days: 14
+          if-no-files-found: error
+          path: rubric-gate-results/affected-build.json
+
+  japicmp:
+    name: japicmp
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch base
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref || 'master' }}
+        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Plan japicmp
+        id: plan
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: plan
+          scorer: japicmp
+          base: origin/${{ github.base_ref || 'master' }}
+
+      - name: Set up JDK
+        if: steps.plan.outputs.needs_maven == 'true'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Install Maven
+        if: steps.plan.outputs.needs_maven == 'true'
+        shell: bash
+        run: bash .github/actions/build-speedup-bench/install-tools.sh maven
+
+      - name: Score japicmp
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: score
+          scorer: japicmp
+          base: origin/${{ github.base_ref || 'master' }}
+
+      - name: Upload japicmp result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rubric-japicmp
+          retention-days: 14
+          if-no-files-found: error
+          path: rubric-gate-results/japicmp.json
+
+  spotless:
+    name: spotless
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch base
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref || 'master' }}
+        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Plan spotless
+        id: plan
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: plan
+          scorer: spotless
+          base: origin/${{ github.base_ref || 'master' }}
+
+      - name: Set up JDK
+        if: steps.plan.outputs.needs_maven == 'true'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Install Maven
+        if: steps.plan.outputs.needs_maven == 'true'
+        shell: bash
+        run: bash .github/actions/build-speedup-bench/install-tools.sh maven
+
+      - name: Score spotless
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: score
+          scorer: spotless
+          base: origin/${{ github.base_ref || 'master' }}
+
+      - name: Upload spotless result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rubric-spotless
+          retention-days: 14
+          if-no-files-found: error
+          path: rubric-gate-results/spotless.json
+
+  comment-density:
+    name: comment-density
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch base
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref || 'master' }}
+        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Score comment density
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: score
+          scorer: comment-density
+          base: origin/${{ github.base_ref || 'master' }}
+
+      - name: Upload comment-density result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rubric-comment-density
+          retention-days: 14
+          if-no-files-found: error
+          path: rubric-gate-results/comment-density.json
+
+  bench-delta:
+    name: bench-delta
+    permissions:
+      contents: read
+      actions: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch base
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref || 'master' }}
+        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Score bench delta
+        uses: ./.github/actions/rubric-gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          command: score
+          scorer: bench-delta
+          base: origin/${{ github.base_ref || 'master' }}
+
+      - name: Upload bench-delta result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rubric-bench-delta
+          retention-days: 14
+          if-no-files-found: error
+          path: rubric-gate-results/bench-delta.json
+
+  merge:
+    name: rubric-gate
+    needs:
+      - affected-build
+      - japicmp
+      - spotless
+      - comment-density
+      - bench-delta
+    if: always()
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch base
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref || 'master' }}
+        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Unit-test rubric gate
+        id: unit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+            -s .github/actions/rubric-gate -p 'test_*.py'
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Download scorer results
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: rubric-*
+          path: rubric-gate-results
+          merge-multiple: true
+
+      - name: Record pull request body
+        if: always()
+        shell: bash
+        env:
+          PR_BODY: ${{ toJson(github.event.pull_request.body) }}
+        run: |
+          mkdir -p rubric-gate-results
+          python3 -c 'import json,os,pathlib; raw=os.environ.get("PR_BODY") or "null"; text=json.loads(raw) or ""; pathlib.Path("rubric-gate-results/pr-body.txt").write_text(text)'
+
+      - name: Merge verdict
+        if: always()
+        uses: ./.github/actions/rubric-gate
+        with:
+          command: merge
+          base: origin/${{ github.base_ref || 'master' }}
+          unit-test-rc: ${{ steps.unit.outputs.rc }}
+
+      - name: Upload verdict.json
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rubric-verdict
+          retention-days: 14
+          if-no-files-found: error
+          path: rubric-gate-results/verdict.json

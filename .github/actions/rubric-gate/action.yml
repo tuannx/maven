@@ -1,0 +1,89 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: rubric-gate
+description: >-
+  Report-only v0 rubric. Scores one dimension group or merges verdict.json.
+  Does not fail the step when the verdict is AUTO_FIX or ESCALATE.
+
+inputs:
+  command:
+    description: plan, score, merge, or all.
+    required: true
+    default: merge
+  scorer:
+    description: affected-build, japicmp, spotless, comment-density, or bench-delta. Used by plan and score.
+    required: false
+    default: ""
+  base:
+    description: Git ref for the three-dot diff. Example origin/master.
+    required: false
+    default: ""
+  out:
+    description: Directory for scorer JSON and verdict.json.
+    required: false
+    default: rubric-gate-results
+  loop:
+    description: AUTO_FIX attempts already consumed. At 2 the verdict escalates.
+    required: false
+    default: "0"
+  llm-hook:
+    description: >-
+      When true, run llm-hook-command and attach its notes. v0 does not let the
+      hook change scores. Default false.
+    required: false
+    default: "false"
+  llm-hook-command:
+    description: >-
+      Argv of the optional hook. Stdin is JSON dimensions. Stdout is JSON
+      {"notes": ["..."]}. Empty when llm-hook is false.
+    required: false
+    default: ""
+  unit-test-rc:
+    description: Exit code of the gate unit tests. Non-zero escalates.
+    required: false
+    default: "0"
+
+outputs:
+  needs_maven:
+    description: true when the scorer must install Maven before score.
+    value: ${{ steps.run.outputs.needs_maven }}
+  verdict:
+    description: AUTO_MERGE_OK, AUTO_FIX, or ESCALATE after merge. Empty for plan and score.
+    value: ${{ steps.run.outputs.verdict }}
+  verdict-path:
+    description: Workspace path of verdict.json after merge.
+    value: ${{ steps.run.outputs.verdict-path }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        RUBRIC_BENCH_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        RUBRIC_COMMAND: ${{ inputs.command }}
+        RUBRIC_SCORER: ${{ inputs.scorer }}
+        RUBRIC_BASE: ${{ inputs.base }}
+        RUBRIC_OUT: ${{ inputs.out }}
+        RUBRIC_LOOP: ${{ inputs.loop }}
+        RUBRIC_LLM_HOOK: ${{ inputs.llm-hook }}
+        RUBRIC_LLM_HOOK_COMMAND: ${{ inputs.llm-hook-command }}
+        RUBRIC_UNIT_TEST_RC: ${{ inputs.unit-test-rc }}
+      run: bash "$GITHUB_ACTION_PATH/run.sh"
