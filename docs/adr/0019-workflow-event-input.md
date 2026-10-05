@@ -29,7 +29,7 @@ under the License.
 
 ## Decision
 
-`.github/workflow_security.py` fails the workflow when a file uses `pull_request_target` unless it contains `workflow-security: reusable-workflow-only`, has no `run:` script, and does not checkout the repository. It also fails when a `run:` script's `${{ }}` expression contains pull request, issue, comment, review, or head ref data. `pr-automation.yml` keeps the event and carries the marker. Before this check the unmarked `pull_request_target` count is 1 and the untrusted `run:` count is 0. After it, both counts are 0.
+`.github/workflow_security.py` fails the workflow when a file uses `pull_request_target` unless it contains `workflow-security: reusable-workflow-only`, has no `run:` script, and does not checkout the repository, or it contains `workflow-security: gate-from-base` and no untrusted `${{ }}` inside `run:`. The gate-from-base marker is the base-ref rubric gate (ADR-0020). It also fails when a `run:` script's `${{ }}` expression contains pull request, issue, comment, review, or head ref data. `pr-automation.yml` keeps the event and carries the marker. Before this check the unmarked `pull_request_target` count is 1 and the untrusted `run:` count is 0. After it, both counts are 0.
 
 ## Options
 
