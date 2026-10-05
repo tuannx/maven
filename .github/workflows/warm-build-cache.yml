@@ -1,0 +1,74 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Warm build cache
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/warm-build-cache.yml"
+      - ".github/warm-build-cache.py"
+      - ".github/test_warm_build_cache.py"
+      - ".github/actions/build-speedup-bench/extensions.xml"
+      - ".github/actions/build-speedup-bench/maven-build-cache-config.xml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warm-build-cache-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  warm-cache:
+    name: warm-build-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Unit-test the cache install
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 .github/test_warm_build_cache.py -v
+
+      - name: Install Maven
+        shell: bash
+        run: bash .github/actions/build-speedup-bench/install-tools.sh maven
+
+      - name: Measure cold and warm package
+        id: measure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/warm-build-cache.py --maven mvn measure
+          test ! -e .mvn/extensions.xml
+          test ! -e .mvn/maven-build-cache-config.xml
+          git status --porcelain -- .mvn/extensions.xml .mvn/maven-build-cache-config.xml | grep -q . && exit 1 || true
