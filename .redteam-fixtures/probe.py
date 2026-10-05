@@ -19,5 +19,5 @@
 # under the License.
 #
 
-def answer() -> int:
+def answer() -> object:
     return missing_redteam_probe
