@@ -29,7 +29,7 @@ ADR-0012 bounds the bench poll. When the bound expired and the run had no conclu
 
 ## Decision
 
-An in-progress bench run is not a perf score and does not write `verdict.json`. `rubric-gate-rescore` runs when `build-speedup-bench` completes and scores `github.event.workflow_run.head_sha`, which is that pull request head. A miss and a mismatched `head_sha` stay `no_evidence`.
+An in-progress bench run is not a perf score and does not write `verdict.json`. `rubric-gate-rescore` runs when `build-speedup-bench` completes and scores `github.event.workflow_run.head_sha`, which is that pull request head. A miss and a mismatched `head_sha` stay `no_evidence`. The scope line is `agent-contract, ci`.
 
 ## Options
 
