@@ -26,6 +26,7 @@ import re
 import shlex
 import subprocess
 
+import doctrine
 import score
 import structure
 import validate
@@ -48,7 +49,14 @@ TIE_BREAK = (
     "prior_verdict",
     "simpler_reversible",
 )
-HARD_RULES = ("secrets", "contents-write", "third-party-push", "report-only", "gate-unit-tests")
+HARD_RULES = (
+    "secrets",
+    "contents-write",
+    "third-party-push",
+    "report-only",
+    "gate-unit-tests",
+    "doctrine-advisory",
+)
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"ghp_[A-Za-z0-9]{20,}"),
@@ -288,6 +296,7 @@ def build_verdict(
         rules.append(hard_rule("gate-unit-tests", True, "rubric-gate unit tests exit 0"))
     else:
         rules.append(hard_rule("gate-unit-tests", False, f"rubric-gate unit tests exit {unit_test_rc}"))
+    rules.append(doctrine.scan_doctrine_advisory(paths, patch))
 
     clarity_parts = []
     for name in ("spotless", "comment-density"):

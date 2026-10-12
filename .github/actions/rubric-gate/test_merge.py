@@ -319,6 +319,24 @@ class MergeTest(unittest.TestCase):
             self.assertEqual(document, expected)
             self.assertEqual(validate.validate(document), [])
 
+    def test_doctrine_advisory_cannot_auto_merge(self):
+        results = all_clear_results()
+        document = self.verdict(
+            results,
+            paths=[
+                ".github/workflows/redteam-advisory.yml",
+                "docs/adr/0023-pinned-doctrine-advisory.md",
+            ],
+            patch="+++ b/.github/workflows/redteam-advisory.yml\n+name: redteam-advisory\n",
+        )
+        self.assertEqual(document["verdict"], "ESCALATE")
+        self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK")
+        rule = next(item for item in document["hard_rules"] if item["id"] == "doctrine-advisory")
+        self.assertFalse(rule["passed"])
+        quiet = self.verdict(results, paths=["docs/adr/0001.md"], patch="+++ b/docs/adr/0001.md\n+# x\n")
+        self.assertTrue(next(item["passed"] for item in quiet["hard_rules"] if item["id"] == "doctrine-advisory"))
+        self.assertEqual(quiet["verdict"], "AUTO_MERGE_OK")
+
     def test_skill_mirrors(self):
         root = Path(__file__).resolve().parents[3]
         for name in ("rubric-gate", "write-adr", "fast-maven-loop"):
