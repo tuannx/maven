@@ -242,6 +242,32 @@ class ApplicabilityTest(unittest.TestCase):
         self.assertEqual(item["state"], "scored")
         self.assertEqual(item["score"], 3)
 
+    def test_gate_fixture_xml_uses_same_head_format_evidence(self):
+        path = ".github/actions/rubric-gate/testdata/repo/api/maven-api-core/pom.xml"
+        patch = "+++ b/" + path + "\n+<project/>\n"
+        body, plan = score.score_spotless([path], patch, [], lambda _commands: (None, "mvn not on PATH"))
+        self.assertEqual(plan["reason"], "no-java-xml")
+        self.assertFalse(plan["needs_maven"])
+        item = body["dimensions"]["clarity"]
+        self.assertEqual(item["state"], "scored")
+        self.assertEqual(item["score"], 3)
+        self.assertNotIn("spotless not run", item["evidence"])
+
+    def test_product_xml_still_requires_spotless_beside_fixture_xml(self):
+        fixture = ".github/actions/rubric-gate/testdata/repo/api/maven-api-core/pom.xml"
+        product = "api/maven-api-core/pom.xml"
+        patch = "+++ b/" + product + "\n+<project/>\n"
+        body, plan = score.score_spotless(
+            [fixture, product],
+            patch,
+            ["api/maven-api-core"],
+            lambda _commands: (None, "mvn not on PATH"),
+        )
+        self.assertEqual(plan["reason"], "java-xml")
+        self.assertEqual(plan["targets"], [product])
+        self.assertEqual(body["dimensions"]["clarity"]["state"], "no_evidence")
+        self.assertIn("spotless not run", body["dimensions"]["clarity"]["evidence"])
+
 
 class DiscoverTmpTest(unittest.TestCase):
     def test_tmp_tree(self):

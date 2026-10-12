@@ -163,8 +163,13 @@ def plan_japicmp(paths, modules):
     return {"needs_maven": True, "commands": maven_commands(selected, "verify"), "reason": "modules", "modules": selected}
 
 
+def gate_fixture_path(path):
+    marker = ".github/actions/rubric-gate/testdata/"
+    return path.startswith(marker) or path.startswith("/" + marker) or ("/" + marker) in path
+
+
 def java_xml_paths(paths):
-    return [path for path in paths if path.endswith((".java", ".xml"))]
+    return [path for path in paths if path.endswith((".java", ".xml")) and not gate_fixture_path(path)]
 
 
 def plan_spotless(paths, modules):
