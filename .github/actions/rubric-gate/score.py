@@ -379,8 +379,8 @@ def path_matches_pattern(path, pattern):
     return path == pattern
 
 
-def intersects_bench(paths, patterns=None):
-    patterns = bench_patterns() if patterns is None else patterns
+def intersects_bench(paths, patterns=None, root=None):
+    patterns = bench_patterns(root) if patterns is None else patterns
     for path in paths:
         for pattern in patterns:
             if path_matches_pattern(path, pattern):
@@ -399,9 +399,9 @@ def score_speedup(current, baseline=BASELINE_SPEEDUP, regression=SPEEDUP_REGRESS
     return dim(3, f"warm-mvnd-speedup {current:.2f} within band of {baseline:.2f}")
 
 
-def evaluate_bench(paths, speedup, fetch_error):
+def evaluate_bench(paths, speedup, fetch_error, root=None):
     try:
-        matched = intersects_bench(paths)
+        matched = intersects_bench(paths, root=root)
     except ValueError as error:
         return no_evidence(str(error)), "failed"
     if not matched:
@@ -618,8 +618,8 @@ def score_comments(patch):
     return result("comment-density", status, {"clarity": item}, item["evidence"]), {"needs_maven": False}
 
 
-def score_bench(paths, speedup, fetch_error):
-    scored, status = evaluate_bench(paths, speedup, fetch_error)
+def score_bench(paths, speedup, fetch_error, root=None):
+    scored, status = evaluate_bench(paths, speedup, fetch_error, root=root)
     return result("bench-delta", status, {"perf": scored}, scored["evidence"]), {"needs_maven": False}
 
 

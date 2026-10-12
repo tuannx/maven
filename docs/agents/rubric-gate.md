@@ -19,7 +19,7 @@ under the License.
 
 # rubric-gate
 
-Report-only review. v0 does not fail the GitHub check. Normative schema: `.github/actions/rubric-gate/schema.json`. Thresholds: ADR-0010 and ADR-0011. Bench reuse: ADR-0008 and ADR-0012. Boundaries: `docs/adr/boundaries.yml`.
+Report-only review. v0 does not fail the GitHub check. Normative schema: `.github/actions/rubric-gate/schema.json`. Thresholds: ADR-0010 and ADR-0011. Bench reuse: ADR-0008 and ADR-0012. Boundaries: `docs/adr/boundaries.yml`. A redteam or pinned-doctrine diff fails `doctrine-advisory` (ADR-0028).
 
 ## Run
 
@@ -75,6 +75,7 @@ Any failure yields `ESCALATE`.
 | third-party-push | one added line names apache/maven and also runs a git write or the gh cli create command (`scan_third_party`) |
 | report-only | `.github/workflows/rubric-gate.yml` grants `contents: write` or a line is `exit 1` |
 | gate-unit-tests | rubric-gate unit tests exit non-zero |
+| doctrine-advisory | a path contains `redteam` or `pinned-doctrine`, or the patch contains `name: redteam-advisory`. ADR-0028 |
 | no-evidence-risky | a dimension is `no_evidence` and the diff has a risky path |
 | structure-measured | architecture or intent is not `scored` |
 
