@@ -96,6 +96,8 @@ under the License.
     <version.palantirJavaFormat>2.90.0</version.palantirJavaFormat>
     <version.maven-shared-resources>6</version.maven-shared-resources>
     <its.forkCount>0.75C</its.forkCount>
+    <its.shard />
+    <its.shardCount />
     <its.test />
   </properties>
 
@@ -487,6 +489,8 @@ under the License.
             <maven.test.tmpdir>${project.build.testOutputDirectory}</maven.test.tmpdir>
             <maven.home>${preparedMavenHome}</maven.home>
             <maven.it.global-settings.dir>${project.build.testOutputDirectory}</maven.it.global-settings.dir>
+            <maven.it.shard>${its.shard}</maven.it.shard>
+            <maven.it.shardCount>${its.shardCount}</maven.it.shardCount>
           </systemPropertyVariables>
           <excludedEnvironmentVariables>
             <excludedEnvironmentVariable>MAVEN_ARGS</excludedEnvironmentVariable>
