@@ -29,7 +29,7 @@ under the License.
 
 ## Decision
 
-Code under `its/` (`.java`, `.kt`, `.groovy`, `.scala`, `.py`, `.js`, `.ts`, `.sh`) plans `mvn -f its/pom.xml test`. If that run is missing, correctness and tests are `no_evidence`. Those paths are risky, so the verdict is `ESCALATE`. A markdown file under `its/` stays `not_applicable`.
+Code under `its/` (`.java`, `.kt`, `.groovy`, `.scala`, `.py`, `.js`, `.ts`, `.sh`) plans `mvn -f its/pom.xml test`. If that run is missing, correctness and tests are `no_evidence`. Those paths are risky, so the verdict is `ESCALATE`. A markdown file under `its/` stays `not_applicable`. The scope line for this diff is `agent-contract, ci`. `its` is not a path group.
 
 ## Options
 
