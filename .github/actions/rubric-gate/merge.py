@@ -153,7 +153,7 @@ def risky_paths(paths, patch):
     for path in paths:
         top = path.split("/", 1)[0]
         build_file = path == "pom.xml" or path.startswith(".mvn/") or path.endswith("/pom.xml") or path.endswith("pom.xml")
-        if top in score.PRODUCT_TOPS or build_file:
+        if top in score.PRODUCT_TOPS or build_file or path in score.its_code_paths([path]):
             risky.append(path)
             continue
         if path.startswith(".github/workflows/") and path.endswith((".yml", ".yaml")):

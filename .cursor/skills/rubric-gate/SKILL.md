@@ -54,7 +54,7 @@ Each dimension has `state` and a non-empty evidence array. Only `scored` and `no
 
 | dimension | scorer |
 |---|---|
-| correctness, tests | affected-build. No product module: `not_applicable`. Root `pom.xml` or `.mvn/maven.config`: `no_evidence`. Maven missing: `no_evidence`. Compile failure: correctness 0. Test failure: tests 0 |
+| correctness, tests | affected-build. No product module: `not_applicable`. Code under `its/` (`.java` and the other code suffixes in `score.its_code_paths`) requires a Java CI run: Maven missing is `no_evidence`, not `not_applicable`. Root `pom.xml` or `.mvn/maven.config`: `no_evidence`. Compile failure: correctness 0. Test failure: tests 0 |
 | compat | japicmp on bound modules (`compat/*` listed in `score.py`, `impl/maven-core`). No bound module and no `api/` signature line: `not_applicable`. An `api/` public or protected signature line without a bound run: `no_evidence` |
 | clarity | minimum of the applicable spotless and comment-density parts. Java or XML changed and `spotless:check` did not run: `no_evidence`. No added source lines: `not_applicable` |
 | perf | bench-delta. ADR-0012. A diff outside the `build-speedup-bench` path filter is `not_applicable` and does not poll. A matching diff reuses the run for `github.event.pull_request.head.sha` (`github.sha` otherwise). The wait is at most 13 attempts. A miss, a mismatched `head_sha`, or a run still in progress at the bound is `no_evidence` and does not score 3 |
@@ -67,7 +67,7 @@ Comment-density uses added lines of `.py`, `.java`, `.sh`, `.yml`, `.yaml` after
 
 ## Risky paths
 
-`api/`, `impl/`, `compat/`, `apache-maven/`. Build config: `pom.xml`, `.mvn/`, any path ending in `pom.xml`. A file under `.github/workflows/` whose added lines grant `contents`, `actions`, `pull-requests`, `checks`, `packages`, `security-events`, or `id-token` `write`.
+`api/`, `impl/`, `compat/`, `apache-maven/`. Code under `its/` with a suffix from `score.its_code_paths`. Build config: `pom.xml`, `.mvn/`, any path ending in `pom.xml`. A file under `.github/workflows/` whose added lines grant `contents`, `actions`, `pull-requests`, `checks`, `packages`, `security-events`, or `id-token` `write`.
 
 ## Hard rules
 
