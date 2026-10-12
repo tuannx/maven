@@ -151,14 +151,28 @@ def pr_body_text(args):
     return None
 
 
+def perf_deferred(bodies):
+    return any(body.get("status") == "pending" for body in bodies)
+
+
 def command_merge(args, paths, patch):
     root = Path(args.root)
     out_dir = Path(args.out)
+    loaded = load_results(out_dir)
+    if perf_deferred(loaded):
+        text = "perf deferred until the bench run for this head finishes\n"
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as handle:
+                handle.write(text)
+        sys.stdout.write(text)
+        write_output("verdict", "PENDING")
+        return 0
     workflow = root / ".github/workflows/rubric-gate.yml"
     workflow_text = workflow.read_text(encoding="utf-8") if workflow.is_file() else None
     enabled = args.llm_hook.lower() == "true"
     document = merge.build_verdict(
-        load_results(out_dir),
+        loaded,
         patch,
         paths,
         workflow_text,

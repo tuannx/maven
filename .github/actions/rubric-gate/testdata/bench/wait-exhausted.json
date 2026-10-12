@@ -7,8 +7,7 @@
     "evidence": [
       "bench run still in progress"
     ],
-    "score": 2,
-    "state": "no_evidence"
+    "state": "pending"
   },
   "repeat_payload": {
     "workflow_runs": [

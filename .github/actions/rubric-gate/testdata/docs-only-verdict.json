@@ -7,7 +7,7 @@
       "evidence": [
         "paths referenced from AGENTS.md and llms.txt resolve",
         "skill mirrors match docs/agents (fast-maven-loop, rubric-gate, write-adr)",
-        "12 ADR files match docs/adr/template.md",
+        "13 ADR files match docs/adr/template.md",
         "no new action.yml",
         "no workflow file in the diff"
       ],
