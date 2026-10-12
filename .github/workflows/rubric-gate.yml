@@ -52,8 +52,13 @@ jobs:
       - name: Fetch base
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          if [ -n "${BASE_SHA}" ]; then
+            git fetch --no-tags origin "${BASE_SHA}"
+          fi
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
       - name: Plan affected build
         id: plan
@@ -61,7 +66,7 @@ jobs:
         with:
           command: plan
           scorer: affected-build
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
 
       - name: Set up JDK
         if: steps.plan.outputs.needs_maven == 'true'
@@ -80,7 +85,7 @@ jobs:
         with:
           command: score
           scorer: affected-build
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
 
       - name: Upload affected-build result
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -106,8 +111,13 @@ jobs:
       - name: Fetch base
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          if [ -n "${BASE_SHA}" ]; then
+            git fetch --no-tags origin "${BASE_SHA}"
+          fi
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
       - name: Plan japicmp
         id: plan
@@ -115,7 +125,7 @@ jobs:
         with:
           command: plan
           scorer: japicmp
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
 
       - name: Set up JDK
         if: steps.plan.outputs.needs_maven == 'true'
@@ -134,7 +144,7 @@ jobs:
         with:
           command: score
           scorer: japicmp
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
 
       - name: Upload japicmp result
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -160,8 +170,13 @@ jobs:
       - name: Fetch base
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          if [ -n "${BASE_SHA}" ]; then
+            git fetch --no-tags origin "${BASE_SHA}"
+          fi
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
       - name: Plan spotless
         id: plan
@@ -169,7 +184,7 @@ jobs:
         with:
           command: plan
           scorer: spotless
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
 
       - name: Set up JDK
         if: steps.plan.outputs.needs_maven == 'true'
@@ -188,7 +203,7 @@ jobs:
         with:
           command: score
           scorer: spotless
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
 
       - name: Upload spotless result
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -214,15 +229,20 @@ jobs:
       - name: Fetch base
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          if [ -n "${BASE_SHA}" ]; then
+            git fetch --no-tags origin "${BASE_SHA}"
+          fi
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
       - name: Score comment density
         uses: ./.github/actions/rubric-gate
         with:
           command: score
           scorer: comment-density
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
 
       - name: Upload comment-density result
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -249,8 +269,13 @@ jobs:
       - name: Fetch base
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          if [ -n "${BASE_SHA}" ]; then
+            git fetch --no-tags origin "${BASE_SHA}"
+          fi
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
       - name: Score bench delta
         uses: ./.github/actions/rubric-gate
@@ -259,7 +284,7 @@ jobs:
         with:
           command: score
           scorer: bench-delta
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
 
       - name: Upload bench-delta result
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -292,8 +317,13 @@ jobs:
       - name: Fetch base
         shell: bash
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.base_ref || 'master' }}
-        run: git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        run: |
+          if [ -n "${BASE_SHA}" ]; then
+            git fetch --no-tags origin "${BASE_SHA}"
+          fi
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
       - name: Unit-test rubric gate
         id: unit
@@ -328,7 +358,7 @@ jobs:
         uses: ./.github/actions/rubric-gate
         with:
           command: merge
-          base: origin/${{ github.base_ref || 'master' }}
+          base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
           unit-test-rc: ${{ steps.unit.outputs.rc }}
 
       - name: Upload verdict.json

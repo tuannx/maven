@@ -1,7 +1,7 @@
 {
   "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
   "schema_version": 2,
-  "verdict": "AUTO_FIX",
+  "verdict": "ESCALATE",
   "blocking": false,
   "loop": 0,
   "head_sha": "lying-scope-head",
@@ -121,6 +121,21 @@
       "id": "perf-claim",
       "passed": true,
       "evidence": "no speedup claim in the pull request body"
+    },
+    {
+      "id": "fixture-replay",
+      "passed": false,
+      "evidence": "gate-self-edit.json replayed to AUTO_MERGE_OK"
+    },
+    {
+      "id": "cache-poisoning",
+      "passed": true,
+      "evidence": "no unhashed cache use and no committed cache extension"
+    },
+    {
+      "id": "unpinned-dependency",
+      "passed": true,
+      "evidence": "added uses: refs are 40 hex characters"
     },
     {
       "id": "no-evidence-risky",

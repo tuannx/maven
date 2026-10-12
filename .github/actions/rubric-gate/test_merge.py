@@ -97,6 +97,8 @@ GAMING_CASES = (
     "tests-deleted",
     "perf-claim",
     "gate-self-edit",
+    "cache-poisoning",
+    "unpinned-dependency",
 )
 
 
@@ -350,6 +352,7 @@ class MergeTest(unittest.TestCase):
         self.assertNotIn("score", docs["dimensions"]["correctness"])
         self.assertEqual(docs["dimensions"]["intent"]["score"], 3)
         self.assertEqual(docs["dimensions"]["architecture"]["score"], 3)
+        self.assertIn("docs/adr/template.md", " ".join(docs["dimensions"]["architecture"]["evidence"]))
         architecture = " ".join(docs["dimensions"]["architecture"]["evidence"])
         self.assertIn("docs/adr/template.md", architecture)
         self.assertIn("1 ADR files match docs/adr/template.md", architecture)
@@ -381,7 +384,7 @@ class MergeTest(unittest.TestCase):
         return expected["verdict"]
 
     def test_eleven_fixtures_match_expected_verdicts(self):
-        self.assertEqual(len(GAMING_CASES), 11)
+        self.assertEqual(len(GAMING_CASES), 13)
         marker = ROOT / "gate-self-edit-marker"
         self.assertFalse(marker.exists())
         live_adr = structure.check_adrs(ROOT)[1][0]
@@ -396,18 +399,36 @@ class MergeTest(unittest.TestCase):
         self.assertFalse(marker.exists())
 
     def test_gaming_cases_match_goldens(self):
-        allowed = {"lying-scope": "AUTO_FIX"}
         for name in GAMING_CASES:
-            if name == "gate-self-edit":
-                continue
             document = _gaming_verdict(name)
             self.assertEqual(validate.validate(document), [], name)
-            expected_verdict = allowed.get(name, "ESCALATE")
-            self.assertEqual(document["verdict"], expected_verdict, name)
+            self.assertEqual(document["verdict"], "ESCALATE", name)
             self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK", name)
             expected = json.loads((GAMING / f"{name}-verdict.json").read_text(encoding="utf-8"))
             self.assertIn("Licensed to the Apache Software Foundation", expected.pop("$comment"))
             self.assertEqual(document, expected, name)
+
+    def test_event_base_sha_overrides_the_requested_ref(self):
+        import os
+
+        import cli
+
+        previous = os.environ.get("RUBRIC_EVENT_BASE_SHA")
+        os.environ["RUBRIC_EVENT_BASE_SHA"] = "9d79c2f63784b10939f632da6dda6da85460830d"
+        try:
+            self.assertEqual(cli.resolve_base("origin/master"), "9d79c2f63784b10939f632da6dda6da85460830d")
+        finally:
+            if previous is None:
+                os.environ.pop("RUBRIC_EVENT_BASE_SHA", None)
+            else:
+                os.environ["RUBRIC_EVENT_BASE_SHA"] = previous
+        self.assertEqual(cli.resolve_base("origin/master"), "origin/master")
+
+    def test_supply_chain_fixtures_are_not_auto_merge(self):
+        for name in ("cache-poisoning", "unpinned-dependency", "gate-self-edit"):
+            document = _gaming_verdict(name)
+            self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK", name)
+            self.assertIn(document["verdict"], ("ESCALATE", "AUTO_FIX"), name)
 
     def test_added_assertion_is_not_weakened(self):
         patch = "\n".join(

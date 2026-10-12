@@ -123,6 +123,21 @@
       "evidence": "speedup claim while bench-delta status is skipped"
     },
     {
+      "id": "fixture-replay",
+      "passed": true,
+      "evidence": "diff does not touch the gate"
+    },
+    {
+      "id": "cache-poisoning",
+      "passed": true,
+      "evidence": "no unhashed cache use and no committed cache extension"
+    },
+    {
+      "id": "unpinned-dependency",
+      "passed": true,
+      "evidence": "added uses: refs are 40 hex characters"
+    },
+    {
       "id": "no-evidence-risky",
       "passed": true,
       "evidence": "no no_evidence dimension"

@@ -19,7 +19,7 @@ under the License.
 
 # rubric-gate
 
-Report-only review. v0 does not fail the GitHub check. Normative schema: `.github/actions/rubric-gate/schema.json`. Thresholds: ADR-0010 and ADR-0011. Bench reuse: ADR-0008 and ADR-0012. Boundaries: `docs/adr/boundaries.yml`.
+Report-only review. v0 does not fail the GitHub check. Normative schema: `.github/actions/rubric-gate/schema.json`. Thresholds: ADR-0010 and ADR-0011. Bench reuse: ADR-0008 and ADR-0012. Boundaries: `docs/adr/boundaries.yml`. Stacked diffs use `pull_request.base.sha` (ADR-0024). Gate-touching diffs replay fixtures (ADR-0014).
 
 ## Run
 
@@ -79,6 +79,9 @@ Any failure yields `ESCALATE`.
 | forged-verdict | the diff contains `verdict.json`. A golden named `*-verdict.json` does not match |
 | tests-weakened | a test file is deleted, or an assertion line is removed and not re-added verbatim |
 | perf-claim | the pull request body matches `warm-mvnd-speedup` or `speedup` followed by a number, and bench-delta status is not `ok` |
+| fixture-replay | a diff touches the gate and a gaming fixture replays to `AUTO_MERGE_OK`. ADR-0014 |
+| cache-poisoning | an added cache use has no `hashFiles(`, or the diff adds a committed `.mvn` cache extension. ADR-0014 |
+| unpinned-dependency | an added `uses:` ref is not 40 hex characters, or a pom dependency block has no version. ADR-0014 |
 | no-evidence-risky | a dimension is `no_evidence` and the diff has a risky path |
 | structure-measured | architecture or intent is not `scored` |
 

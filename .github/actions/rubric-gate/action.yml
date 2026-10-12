@@ -81,6 +81,7 @@ runs:
         RUBRIC_COMMAND: ${{ inputs.command }}
         RUBRIC_SCORER: ${{ inputs.scorer }}
         RUBRIC_BASE: ${{ inputs.base }}
+        RUBRIC_EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         RUBRIC_OUT: ${{ inputs.out }}
         RUBRIC_LOOP: ${{ inputs.loop }}
         RUBRIC_LLM_HOOK: ${{ inputs.llm-hook }}

@@ -126,6 +126,21 @@
       "evidence": "no speedup claim in the pull request body"
     },
     {
+      "id": "fixture-replay",
+      "passed": false,
+      "evidence": "gate-self-edit.json replayed to AUTO_MERGE_OK"
+    },
+    {
+      "id": "cache-poisoning",
+      "passed": true,
+      "evidence": "no unhashed cache use and no committed cache extension"
+    },
+    {
+      "id": "unpinned-dependency",
+      "passed": true,
+      "evidence": "added uses: refs are 40 hex characters"
+    },
+    {
       "id": "no-evidence-risky",
       "passed": true,
       "evidence": "no no_evidence dimension"
