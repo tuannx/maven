@@ -24,7 +24,7 @@ under the License.
 
 # rubric-gate
 
-Report-only review. v0 does not fail the GitHub check. Normative schema: `.github/actions/rubric-gate/schema.json`. Thresholds: ADR-0010 and ADR-0011. Bench reuse: ADR-0008 and ADR-0012. Boundaries: `docs/adr/boundaries.yml`. Stacked diffs use `pull_request.base.sha` (ADR-0024). Gate-touching diffs replay fixtures (ADR-0014).
+Report-only review. v0 does not fail the GitHub check. Normative schema: `.github/actions/rubric-gate/schema.json`. Thresholds: ADR-0010 and ADR-0011. Bench reuse: ADR-0008 and ADR-0012. Boundaries: `docs/adr/boundaries.yml`. Stacked diffs use `pull_request.base.sha` (ADR-0024). Gate-touching diffs replay fixtures (ADR-0014). A redteam or pinned-doctrine diff fails `doctrine-advisory` (ADR-0028). Java or XML runs same-head `spotless:check` (ADR-0029).
 
 ## Run
 
@@ -56,7 +56,7 @@ Each dimension has `state` and a non-empty evidence array. Only `scored` and `no
 |---|---|
 | correctness, tests | affected-build. No product module: `not_applicable`. Root `pom.xml` or `.mvn/maven.config`: `no_evidence`. Maven missing: `no_evidence`. Compile failure: correctness 0. Test failure: tests 0 |
 | compat | japicmp on bound modules (`compat/*` listed in `score.py`, `impl/maven-core`). No bound module and no `api/` signature line: `not_applicable`. An `api/` public or protected signature line without a bound run: `no_evidence` |
-| clarity | minimum of the applicable spotless and comment-density parts. Java or XML changed and `spotless:check` did not run: `no_evidence`. No added source lines: `not_applicable` |
+| clarity | minimum of the applicable spotless and comment-density parts. Java or XML changed and `spotless:check` did not run: `no_evidence`. A path containing `testdata/repo/` is the module after that marker. Other Java or XML with no leaf module runs `spotless:check` on `api/maven-api-core` on that same head. Exit 0 is scored. No added source lines: `not_applicable` |
 | perf | bench-delta. ADR-0012. A diff outside the `build-speedup-bench` path filter is `not_applicable` and does not poll. A matching diff reuses the run for `github.event.pull_request.head.sha` (`github.sha` otherwise). The wait is at most 13 attempts. A miss, a mismatched `head_sha`, or a run still in progress at the bound is `no_evidence` and does not score 3 |
 | security | hard rules below. A failed security rule scores 0 |
 | intent | ADR-0011. 3 when the pull request body has `scope:` and every changed path is in a named group. 1 when the line is missing, names an unknown group, or leaves a path out. That 1 is the lying-scope case and stays `AUTO_FIX` while `loop` is under 2. `no_evidence` when the body was not supplied |
@@ -87,6 +87,7 @@ Any failure yields `ESCALATE`.
 | fixture-replay | a diff touches the gate and a gaming fixture replays to `AUTO_MERGE_OK`. ADR-0014 |
 | cache-poisoning | an added cache use has no `hashFiles(`, or the diff adds a committed `.mvn` cache extension. ADR-0014 |
 | unpinned-dependency | an added `uses:` ref is not 40 hex characters, or a pom dependency block has no version. ADR-0014 |
+| doctrine-advisory | a path contains `redteam` or `pinned-doctrine`, or the patch contains `name: redteam-advisory`. ADR-0028 |
 | no-evidence-risky | a dimension is `no_evidence` and the diff has a risky path |
 | structure-measured | architecture or intent is not `scored` |
 

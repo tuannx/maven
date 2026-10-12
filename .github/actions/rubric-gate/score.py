@@ -167,18 +167,29 @@ def java_xml_paths(paths):
     return [path for path in paths if path.endswith((".java", ".xml"))]
 
 
+def module_path_for_spotless(path):
+    marker = "testdata/repo/"
+    index = path.find(marker)
+    if index >= 0:
+        return path[index + len(marker):]
+    return path
+
+
 def plan_spotless(paths, modules):
     targets = java_xml_paths(paths)
     if not targets:
         return {"needs_maven": False, "commands": [], "reason": "no-java-xml"}
-    selected = select_modules(targets, modules)
+    lookup = [module_path_for_spotless(path) for path in targets]
+    selected = select_modules(lookup, modules)
     leaves = [module for module in selected if module.count("/") >= 1]
+    reason = "java-xml"
     if not leaves:
-        return {"needs_maven": False, "commands": [], "reason": "no-module", "targets": targets}
+        leaves = ["api/maven-api-core"]
+        reason = "java-xml-same-head"
     return {
         "needs_maven": True,
         "commands": maven_commands(leaves, "spotless:check"),
-        "reason": "java-xml",
+        "reason": reason,
         "modules": leaves,
         "targets": targets,
     }

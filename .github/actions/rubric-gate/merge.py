@@ -27,6 +27,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
+import doctrine
 import score
 import structure
 import validate
@@ -62,6 +63,7 @@ HARD_RULES = (
     "fixture-replay",
     "cache-poisoning",
     "unpinned-dependency",
+    "doctrine-advisory",
 )
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -530,6 +532,7 @@ def build_verdict(
     rules.append(scan_fixture_replay(paths, replay_fixtures))
     rules.append(scan_cache_poisoning(patch))
     rules.append(scan_unpinned_dependency(patch))
+    rules.append(doctrine.scan_doctrine_advisory(paths, patch))
 
     clarity_parts = []
     for name in ("spotless", "comment-density"):

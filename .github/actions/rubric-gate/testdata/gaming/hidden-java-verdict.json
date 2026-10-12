@@ -39,11 +39,11 @@
       ]
     },
     "clarity": {
-      "state": "no_evidence",
-      "score": 2,
+      "state": "scored",
+      "score": 3,
       "evidence": [
-        "spotless not run",
-        "java or xml changed",
+        "no trailing whitespace on added source lines",
+        "spotless:check exit 0",
         "comment ratio 0.00"
       ]
     },
@@ -141,9 +141,14 @@
       "evidence": "added uses: refs are 40 hex characters"
     },
     {
+      "id": "doctrine-advisory",
+      "passed": true,
+      "evidence": "diff is not a doctrine advisory"
+    },
+    {
       "id": "no-evidence-risky",
       "passed": true,
-      "evidence": "no_evidence capped at 2; paths are not risky"
+      "evidence": "no no_evidence dimension"
     },
     {
       "id": "structure-measured",
@@ -165,10 +170,9 @@
       ]
     },
     "spotless": {
-      "status": "skipped",
+      "status": "ok",
       "evidence": [
-        "spotless not run",
-        "java or xml changed"
+        "spotless:check exit 0"
       ]
     },
     "comment-density": {

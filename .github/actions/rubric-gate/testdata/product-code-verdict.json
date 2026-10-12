@@ -141,6 +141,11 @@
       "evidence": "added uses: refs are 40 hex characters"
     },
     {
+      "id": "doctrine-advisory",
+      "passed": true,
+      "evidence": "diff is not a doctrine advisory"
+    },
+    {
       "id": "no-evidence-risky",
       "passed": false,
       "evidence": "no_evidence on correctness, compat, clarity, tests; risky paths present"

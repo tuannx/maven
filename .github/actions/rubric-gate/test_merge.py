@@ -430,6 +430,26 @@ class MergeTest(unittest.TestCase):
             self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK", name)
             self.assertIn(document["verdict"], ("ESCALATE", "AUTO_FIX"), name)
 
+    def test_master_architecture_assertion_line_remains(self):
+        source = Path(__file__).read_text(encoding="utf-8")
+        master_line = 'self.assertIn("docs/adr/template.md", " ".join(docs["dimensions"]["architecture"]["evidence"]))'
+        self.assertIn(master_line, source)
+
+    def test_doctrine_advisory_cannot_auto_merge(self):
+        results = all_clear_results()
+        document = self.verdict(
+            results,
+            paths=[
+                ".github/workflows/redteam-advisory.yml",
+                "docs/adr/0023-pinned-doctrine-advisory.md",
+            ],
+            patch="+++ b/.github/workflows/redteam-advisory.yml\n+name: redteam-advisory\n",
+        )
+        self.assertEqual(document["verdict"], "ESCALATE")
+        self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK")
+        rule = next(item for item in document["hard_rules"] if item["id"] == "doctrine-advisory")
+        self.assertFalse(rule["passed"])
+
     def test_added_assertion_is_not_weakened(self):
         patch = "\n".join(
             [
