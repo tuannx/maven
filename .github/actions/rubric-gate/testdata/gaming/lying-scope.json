@@ -6,5 +6,6 @@
   "paths": [
     ".github/actions/rubric-gate/README.md"
   ],
-  "pr_body": "scope: agent-contract\n"
+  "pr_body": "scope: agent-contract\n",
+  "expected_verdict": "AUTO_FIX"
 }

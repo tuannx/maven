@@ -402,7 +402,8 @@ class MergeTest(unittest.TestCase):
         for name in GAMING_CASES:
             document = _gaming_verdict(name)
             self.assertEqual(validate.validate(document), [], name)
-            self.assertEqual(document["verdict"], "ESCALATE", name)
+            if self._expected_verdict(name) == "ESCALATE":
+                self.assertEqual(document["verdict"], "ESCALATE", name)
             self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK", name)
             expected = json.loads((GAMING / f"{name}-verdict.json").read_text(encoding="utf-8"))
             self.assertIn("Licensed to the Apache Software Foundation", expected.pop("$comment"))
@@ -477,6 +478,58 @@ class MergeTest(unittest.TestCase):
             self.assertTrue(skill.startswith("---\n"))
             body = skill.split("---\n", 2)[2].strip() + "\n"
             self.assertEqual(body, doc.strip() + "\n")
+
+    def test_gate_self_edit_replay_escalates(self):
+        case = _load_gaming("gate-self-edit")
+        self.assertEqual(case["expected_verdict"], "ESCALATE")
+        self.assertEqual(merge.replay_fixture(case), "ESCALATE")
+        self.assertNotEqual(merge.replay_fixture(case), "AUTO_MERGE_OK")
+        document = _gaming_verdict("gate-self-edit")
+        edited = next(item for item in document["hard_rules"] if item["id"] == "decision-edit")
+        replayed = next(item for item in document["hard_rules"] if item["id"] == "fixture-replay")
+        self.assertFalse(edited["passed"])
+        self.assertIn("merge.py", edited["evidence"])
+        self.assertTrue(replayed["passed"])
+        self.assertEqual(document["verdict"], "ESCALATE")
+
+    def test_lying_scope_expected_verdict_is_auto_fix(self):
+        case = _load_gaming("lying-scope")
+        self.assertEqual(case["expected_verdict"], "AUTO_FIX")
+        self.assertEqual(merge.replay_fixture(case), "AUTO_FIX")
+        self.assertEqual(_gaming_verdict("lying-scope")["verdict"], "AUTO_FIX")
+
+    def test_no_gaming_fixture_replays_to_auto_merge(self):
+        for name in GAMING_CASES:
+            case = _load_gaming(name)
+            actual = merge.replay_fixture(case)
+            self.assertNotEqual(actual, "AUTO_MERGE_OK", name)
+            self.assertEqual(actual, self._expected_verdict(name), name)
+
+    def test_tighten_missing_evidence_escalates(self):
+        import os
+        import tempfile
+
+        previous = os.environ.get("RUBRIC_TIGHTEN_MISSING")
+        os.environ["RUBRIC_TIGHTEN_MISSING"] = "base gate has no tighten.py"
+        try:
+            document = self.verdict()
+        finally:
+            if previous is None:
+                os.environ.pop("RUBRIC_TIGHTEN_MISSING", None)
+            else:
+                os.environ["RUBRIC_TIGHTEN_MISSING"] = previous
+        self.assertEqual(document["verdict"], "ESCALATE")
+        rule = next(item for item in document["hard_rules"] if item["id"] == "tighten-missing")
+        self.assertFalse(rule["passed"])
+        self.assertEqual(rule["evidence"], "base gate has no tighten.py")
+        self.assertTrue(merge.scan_tighten_missing(ROOT)["passed"])
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "rubric-gate-results"
+            marker.mkdir()
+            (marker / "tighten-missing.txt").write_text("base gate has no tighten.py\n", encoding="utf-8")
+            recorded = merge.scan_tighten_missing(tmp)
+        self.assertFalse(recorded["passed"])
+        self.assertEqual(recorded["evidence"], "base gate has no tighten.py")
 
 
 if __name__ == "__main__":

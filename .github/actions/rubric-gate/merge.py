@@ -22,6 +22,7 @@
 """Merge scorer JSON into a schema-valid verdict. v0 never sets blocking true."""
 
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -61,9 +62,23 @@ HARD_RULES = (
     "tests-weakened",
     "perf-claim",
     "fixture-replay",
+    "decision-edit",
+    "tighten-missing",
     "cache-poisoning",
     "unpinned-dependency",
     "doctrine-advisory",
+)
+DECISION_FILES = (
+    ".github/actions/rubric-gate/action.yml",
+    ".github/actions/rubric-gate/cli.py",
+    ".github/actions/rubric-gate/doctrine.py",
+    ".github/actions/rubric-gate/merge.py",
+    ".github/actions/rubric-gate/run.sh",
+    ".github/actions/rubric-gate/schema.json",
+    ".github/actions/rubric-gate/score.py",
+    ".github/actions/rubric-gate/structure.py",
+    ".github/actions/rubric-gate/tighten.py",
+    ".github/actions/rubric-gate/validate.py",
 )
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -283,6 +298,38 @@ def replay_fixture(case):
         replay_fixtures=False,
     )
     return document["verdict"]
+
+
+def decision_edit_path(path):
+    normalized = path.replace("\\", "/")
+    if normalized in DECISION_FILES:
+        return True
+    return normalized.startswith(".github/actions/rubric-gate/testdata/")
+
+
+def scan_decision_edit(paths):
+    hits = [path for path in paths if decision_edit_path(path)]
+    if not hits:
+        return hard_rule("decision-edit", True, "diff does not edit gate decision code or fixtures")
+    shown = ", ".join(hits[:4])
+    return hard_rule("decision-edit", False, f"gate decision code or fixture edited: {shown}")
+
+
+def tighten_missing_evidence(root):
+    evidence = os.environ.get("RUBRIC_TIGHTEN_MISSING", "").strip()
+    if evidence:
+        return evidence
+    marker = Path(root) / "rubric-gate-results" / "tighten-missing.txt"
+    if marker.is_file():
+        return marker.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def scan_tighten_missing(root):
+    evidence = tighten_missing_evidence(root)
+    if evidence:
+        return hard_rule("tighten-missing", False, evidence)
+    return hard_rule("tighten-missing", True, "base gate has tighten.py")
 
 
 def scan_fixture_replay(paths, replay_fixtures):
@@ -530,6 +577,8 @@ def build_verdict(
     rules.append(scan_tests_weakened(patch))
     rules.append(scan_perf_claim(pr_body, by_name.get("bench-delta", {}).get("status")))
     rules.append(scan_fixture_replay(paths, replay_fixtures))
+    rules.append(scan_decision_edit(paths))
+    rules.append(scan_tighten_missing(root))
     rules.append(scan_cache_poisoning(patch))
     rules.append(scan_unpinned_dependency(patch))
     rules.append(doctrine.scan_doctrine_advisory(paths, patch))

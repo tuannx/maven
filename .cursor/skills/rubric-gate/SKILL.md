@@ -85,6 +85,8 @@ Any failure yields `ESCALATE`.
 | tests-weakened | a test file is deleted, or an assertion line is removed and not re-added verbatim |
 | perf-claim | the pull request body matches `warm-mvnd-speedup` or `speedup` followed by a number, and bench-delta status is not `ok` |
 | fixture-replay | a diff touches the gate and a gaming fixture replays to `AUTO_MERGE_OK`. ADR-0014 |
+| decision-edit | a path is gate decision code (`merge.py`, `score.py`, `structure.py`, `cli.py`, `doctrine.py`, `validate.py`, `tighten.py`, `action.yml`, `run.sh`, `schema.json`) or a file under `.github/actions/rubric-gate/testdata/`. ADR-0030 |
+| tighten-missing | `RUBRIC_TIGHTEN_MISSING` or `rubric-gate-results/tighten-missing.txt` is non-empty. ADR-0031 |
 | cache-poisoning | an added cache use has no `hashFiles(`, or the diff adds a committed `.mvn` cache extension. ADR-0014 |
 | unpinned-dependency | an added `uses:` ref is not 40 hex characters, or a pom dependency block has no version. ADR-0014 |
 | doctrine-advisory | a path contains `redteam` or `pinned-doctrine`, or the patch contains `name: redteam-advisory`. ADR-0028 |

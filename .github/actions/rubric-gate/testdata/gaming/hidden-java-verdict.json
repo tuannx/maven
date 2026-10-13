@@ -131,6 +131,16 @@
       "evidence": "diff does not touch the gate"
     },
     {
+      "id": "decision-edit",
+      "passed": true,
+      "evidence": "diff does not edit gate decision code or fixtures"
+    },
+    {
+      "id": "tighten-missing",
+      "passed": true,
+      "evidence": "base gate has tighten.py"
+    },
+    {
       "id": "cache-poisoning",
       "passed": true,
       "evidence": "no unhashed cache use and no committed cache extension"

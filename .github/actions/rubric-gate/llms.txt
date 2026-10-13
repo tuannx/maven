@@ -21,7 +21,7 @@ under the License.
 
 Report-only composite action at `tuannx/maven/.github/actions/rubric-gate`. Writes `verdict.json`. Does not fail the step on `AUTO_FIX` or `ESCALATE`. Personal fork only. Do not open pull requests on apache/maven. Do not create tags or releases. `v0` is not a git tag.
 
-Skill: `docs/agents/rubric-gate.md`. Schema: `schema.json` (`schema_version` 2). Thresholds: ADR-0010. Structural checks: ADR-0011 and `docs/adr/boundaries.yml`. Gate-gaming hard rules: ADR-0013. Fixture replay: ADR-0014. Diff base: ADR-0024.
+Skill: `docs/agents/rubric-gate.md`. Schema: `schema.json` (`schema_version` 2). Thresholds: ADR-0010. Structural checks: ADR-0011 and `docs/adr/boundaries.yml`. Gate-gaming hard rules: ADR-0013. Fixture replay: ADR-0014. Decision-code edits: ADR-0030. Missing tighten.py: ADR-0031. Diff base: ADR-0024.
 
 ## Inputs
 
@@ -35,6 +35,7 @@ Skill: `docs/agents/rubric-gate.md`. Schema: `schema.json` (`schema_version` 2).
 | llm-hook | `false` | when true, run `llm-hook-command` and store notes. Scores stay put |
 | llm-hook-command | empty | argv. Stdin is dimension JSON. Stdout is `{"notes":["..."]}` |
 | unit-test-rc | `0` | non-zero fails hard rule `gate-unit-tests` |
+| tighten-missing | empty | non-empty fails hard rule `tighten-missing` |
 
 ## Outputs
 

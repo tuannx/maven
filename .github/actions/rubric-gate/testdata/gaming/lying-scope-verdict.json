@@ -1,7 +1,7 @@
 {
   "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
   "schema_version": 2,
-  "verdict": "ESCALATE",
+  "verdict": "AUTO_FIX",
   "blocking": false,
   "loop": 0,
   "head_sha": "lying-scope-head",
@@ -124,8 +124,18 @@
     },
     {
       "id": "fixture-replay",
-      "passed": false,
-      "evidence": "gate-self-edit.json replayed to AUTO_MERGE_OK"
+      "passed": true,
+      "evidence": "fixture replay stayed off AUTO_MERGE_OK"
+    },
+    {
+      "id": "decision-edit",
+      "passed": true,
+      "evidence": "diff does not edit gate decision code or fixtures"
+    },
+    {
+      "id": "tighten-missing",
+      "passed": true,
+      "evidence": "base gate has tighten.py"
     },
     {
       "id": "cache-poisoning",

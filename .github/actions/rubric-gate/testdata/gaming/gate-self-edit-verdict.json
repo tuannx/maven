@@ -127,8 +127,18 @@
     },
     {
       "id": "fixture-replay",
+      "passed": true,
+      "evidence": "fixture replay stayed off AUTO_MERGE_OK"
+    },
+    {
+      "id": "decision-edit",
       "passed": false,
-      "evidence": "gate-self-edit.json replayed to AUTO_MERGE_OK"
+      "evidence": "gate decision code or fixture edited: .github/actions/rubric-gate/merge.py"
+    },
+    {
+      "id": "tighten-missing",
+      "passed": true,
+      "evidence": "base gate has tighten.py"
     },
     {
       "id": "cache-poisoning",
