@@ -41,7 +41,14 @@ under the License.
 
 ## Trade-off
 
-A site-only breakage is invisible until the push to master. Pull-request full-build keeps the verify step, which was 510s on `ubuntu-latest` Java 21 and 878s on `windows-latest` Java 25 in run 37329433772. The after measurement is that pull request's full-build jobs, same runner class, with the site step absent.
+A site-only breakage is invisible until the push to master. Pull-request full-build keeps the verify step. Same runner class, run [37329433772](https://github.com/tuannx/maven/actions/runs/37329433772) versus this pull request's run [38422998169](https://github.com/tuannx/maven/actions/runs/38422998169). The site step and Graphviz install were skipped.
+
+| cell | before verify | before site | before job | after verify | after site | after job |
+|---|---:|---:|---:|---:|---:|---:|
+| ubuntu-latest, Java 21 | 510s | 582s | 1132s | 304s | skipped | 328s |
+| windows-latest, Java 25 | 878s | 759s | 1719s | 882s | skipped | 939s |
+
+The windows-25 job fell 780s with verify flat (878s to 882s), in line with the 759s site step. The ubuntu-21 job fell 804s; verify on that cell also moved from 510s to 304s, so that drop is not the site step alone. On this unsharded run the slowest integration-tests job was 1912s (windows-latest, Java 21) and the slowest full-build job was 939s, so the integration-tests cell stayed the critical path.
 
 ## Revisit when
 
