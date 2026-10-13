@@ -56,16 +56,20 @@ jobs:
           EVENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          mkdir -p redteam-results
+          trap 'printf "SHA pair resolution failed (exit %s)\nEVENT_BASE=%s\nEVENT_HEAD=%s\n" "$?" "$EVENT_BASE" "$EVENT_HEAD" > redteam-results/pair-error.txt' ERR
           base="$EVENT_BASE"
           if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ]; then
             base=$(git rev-parse origin/master)
           fi
           [[ "$base" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EVENT_HEAD" =~ ^[0-9a-f]{40}$ ]]
-          git cat-file -e "$base^{commit}"
           git cat-file -e "$EVENT_HEAD^{commit}"
           test "$(git rev-parse HEAD)" = "$EVENT_HEAD"
-          mkdir -p redteam-results
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$base"
+          fi
+          git cat-file -e "$base^{commit}"
           echo "base=$base" >> "$GITHUB_OUTPUT"
           echo "head=$EVENT_HEAD" >> "$GITHUB_OUTPUT"
           echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct "$EVENT_HEAD")" >> "$GITHUB_ENV"
