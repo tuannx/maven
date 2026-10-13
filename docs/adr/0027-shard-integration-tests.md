@@ -43,17 +43,17 @@ The integration-tests matrix gains `shard` `0` and `1`. Both pass `-Dits.shard` 
 
 Each shard repeats the reactor build. Eighteen integration-tests jobs can queue behind the hosted runner cap, so the workflow wall clock may fall by less than the cell median. A class moves shards when its name changes.
 
-One sample, same `ubuntu-latest` / `macos-latest` / `windows-latest` runners. PR #8 run [37329433772](https://github.com/tuannx/maven/actions/runs/37329433772) versus this branch run [38273056619](https://github.com/tuannx/maven/actions/runs/38273056619). Job duration is `completed_at` minus `started_at`. The IT span is the first integration-tests `started_at` through the last `completed_at`.
+Two samples, same `ubuntu-latest` / `macos-latest` / `windows-latest` runners. PR #8 run [37329433772](https://github.com/tuannx/maven/actions/runs/37329433772) versus this branch runs [38273056619](https://github.com/tuannx/maven/actions/runs/38273056619) and [38422198790](https://github.com/tuannx/maven/actions/runs/38422198790). Job duration is `completed_at` minus `started_at`. The IT span is the first integration-tests `started_at` through the last `completed_at`.
 
-| | #8, 9 jobs | sharded, 18 jobs |
-|---|---:|---:|
-| slowest integration-tests job | 2013s (windows-latest, 21) | 1613s (windows-latest, 21, shard 0) |
-| sum of integration-tests job durations | 12149s | 19098s |
-| integration-tests span | 6013s | 13005s |
-| Java CI run wall clock | 6525s | 15357s |
+| | #8, 9 jobs | sample 1, 18 jobs | sample 2, 18 jobs |
+|---|---:|---:|---:|
+| slowest integration-tests job | 2013s (windows-latest, 21) | 1613s (windows-latest, 21, shard 0) | 1575s (windows-latest, 21, shard 0) |
+| sum of integration-tests job durations | 12149s | 19098s | 19895s |
+| integration-tests span | 6013s | 13005s | 5893s |
+| Java CI run wall clock | 6525s | 15357s | 7382s |
 
-The slowest job fell 400s (20%). Runner time rose 6949s (57%) because each shard repeats the reactor. The run wall clock rose because eighteen jobs queued; the span is not the slowest job. A second sample is the Java CI run on the head that adds the rubric-gate and bench branch filters.
+The slowest job fell 400s (20%) then 438s (22%). Runner time rose 6949s (57%) then 7746s (64%) because each shard repeats the reactor. Sample 1 wall clock rose because eighteen jobs queued (span 13005s). Sample 2 span was 5893s, under the unsharded span, and wall clock was 7382s, 857s (13%) above the unsharded run. On sample 2 the slowest full-build job was 1724s, above the slowest integration-tests job, because full-build still runs the site.
 
 ## Revisit when
 
-The second sample's slowest job is above the pre-shard slowest job, or a shard logs `shared fixture collision`.
+A later sample's slowest integration-tests job is above 2013s, the sum of integration-tests durations falls under 12149s, or a shard logs `shared fixture collision`.
