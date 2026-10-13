@@ -612,7 +612,11 @@ class MergeTest(unittest.TestCase):
         self.assertIn("rm -rf .github/actions/rubric-gate", text)
         self.assertIn('git checkout "$BASE_SHA" -- .github/actions/rubric-gate', text)
         self.assertIn("base gate has no tighten.py", text)
+        self.assertIn("missing=base gate has no tighten.py", text)
+        self.assertIn("tighten-missing: ${{ needs.gate-tighten.outputs.missing }}", text)
         self.assertIn('git checkout "$BASE_SHA" -- .github/ci-verify-paths.py', text)
+        for line in text.splitlines():
+            self.assertNotEqual(line.strip(), "exit 1")
         self.assertNotIn("scan_gate_self_edit", (ROOT / ".github" / "actions" / "rubric-gate" / "merge.py").read_text(encoding="utf-8"))
         for line in text.splitlines():
             if "github.event.pull_request" in line:

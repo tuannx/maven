@@ -331,6 +331,8 @@ jobs:
 
   gate-tighten:
     name: gate-tighten
+    outputs:
+      missing: ${{ steps.tighten.outputs.missing }}
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -344,6 +346,7 @@ jobs:
           persist-credentials: false
 
       - name: Base fixtures against the pull request gate
+        id: tighten
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
@@ -359,12 +362,14 @@ jobs:
           git checkout "$BASE_SHA" -- .github/actions/rubric-gate
           if [ ! -f .github/actions/rubric-gate/tighten.py ]; then
             echo "base gate has no tighten.py" >&2
-            exit 1
+            echo "missing=base gate has no tighten.py" >> "$GITHUB_OUTPUT"
+          else
+            echo "missing=" >> "$GITHUB_OUTPUT"
+            if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
+              git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
+            fi
+            PYTHONDONTWRITEBYTECODE=1 python3 .github/actions/rubric-gate/tighten.py /tmp/pr-gate/rubric-gate
           fi
-          if git cat-file -e "${BASE_SHA}:.github/ci-verify-paths.py"; then
-            git checkout "$BASE_SHA" -- .github/ci-verify-paths.py
-          fi
-          PYTHONDONTWRITEBYTECODE=1 python3 .github/actions/rubric-gate/tighten.py /tmp/pr-gate/rubric-gate
 
   merge:
     name: rubric-gate
@@ -374,6 +379,7 @@ jobs:
       - spotless
       - comment-density
       - bench-delta
+      - gate-tighten
     if: always()
     permissions:
       contents: read
@@ -438,6 +444,7 @@ jobs:
           command: merge
           base: ${{ github.event.pull_request.base.sha || format('origin/{0}', github.base_ref || 'master') }}
           unit-test-rc: ${{ steps.unit.outputs.rc }}
+          tighten-missing: ${{ needs.gate-tighten.outputs.missing }}
 
       - name: Upload verdict.json
         if: always()
