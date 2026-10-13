@@ -27,6 +27,7 @@ on:
     branches:
       - master
       - cursor/hermetic-golden-1127
+      - cursor/gate-gaming-redteam-1127
 
 permissions:
   contents: read

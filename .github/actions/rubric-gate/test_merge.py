@@ -531,6 +531,24 @@ class MergeTest(unittest.TestCase):
         self.assertFalse(recorded["passed"])
         self.assertEqual(recorded["evidence"], "base gate has no tighten.py")
 
+    def test_write_all_permissions_escalates(self):
+        case = _load_gaming("write-all")
+        self.assertEqual(case["expected_verdict"], "ESCALATE")
+        document = _gaming_verdict("write-all")
+        self.assertEqual(document["dimensions"]["architecture"]["score"], 3)
+        self.assertEqual(document["dimensions"]["perf"]["state"], "not_applicable")
+        self.assertEqual(document["verdict"], "ESCALATE")
+        self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK")
+        self.assertEqual(merge.replay_fixture(case), "ESCALATE")
+        self.assertNotEqual(merge.replay_fixture(case), "AUTO_MERGE_OK")
+        rule = next(item for item in document["hard_rules"] if item["id"] == "contents-write")
+        self.assertFalse(rule["passed"])
+        self.assertEqual(
+            rule["evidence"],
+            "permissions: write-all added in .github/workflows/least-privilege.yml",
+        )
+        self.assertEqual(document["dimensions"]["security"]["score"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

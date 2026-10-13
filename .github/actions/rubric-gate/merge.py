@@ -117,6 +117,8 @@ def scan_contents_write(patch):
         for line in lines:
             if re.search(r"(?i)contents:\s*write", line):
                 return hard_rule("contents-write", False, f"contents: write added in {path}")
+            if re.search(r"(?i)permissions:\s*write-all", line):
+                return hard_rule("contents-write", False, f"permissions: write-all added in {path}")
     return hard_rule("contents-write", True, "no added contents: write")
 
 
