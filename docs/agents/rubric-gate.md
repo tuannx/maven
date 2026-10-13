@@ -71,7 +71,7 @@ Any failure yields `ESCALATE`.
 | id | failure |
 |---|---|
 | secrets | added line matches a private key block, `ghp_` plus 20 alphanumerics, `github_pat_`, or `AKIA` plus 16 |
-| contents-write | added workflow line grants `contents: write` |
+| contents-write | added workflow line grants `contents: write` or `permissions: write-all`. ADR-0033 |
 | third-party-push | one added line names apache/maven and also runs a git write or the gh cli create command (`scan_third_party`) |
 | report-only | `.github/workflows/rubric-gate.yml` grants `contents: write` or a line is `exit 1` |
 | gate-unit-tests | rubric-gate unit tests exit non-zero |
