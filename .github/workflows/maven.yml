@@ -21,7 +21,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, cursor/mng-0095-unique-extract-1127 ]
 
 # allow single build per branch or PR
 concurrency:
@@ -261,6 +261,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         java: ['17', '21', '25']
+        shard: ['0', '1']
     steps:
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -320,13 +321,13 @@ jobs:
 
       - name: Build Maven and ITs and run them
         shell: bash
-        run: mvn install -e -B -V -Prun-its,mimir
+        run: mvn install -e -B -V -Prun-its,mimir -Dits.shard=${{ matrix.shard }} -Dits.shardCount=2
 
       - name: Upload Mimir caches
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() && !failure() }}
         with:
-          name: cache-${{ runner.os }}-integration-tests-${{ matrix.java }}
+          name: cache-${{ runner.os }}-integration-tests-${{ matrix.java }}-shard-${{ matrix.shard }}
           retention-days: 1
           path: ${{ env.MIMIR_LOCAL }}
 
@@ -334,7 +335,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ failure() || cancelled() }}
         with:
-          name: integration-test-logs-${{ runner.os }}-${{ matrix.java }}
+          name: integration-test-logs-${{ runner.os }}-${{ matrix.java }}-shard-${{ matrix.shard }}
           retention-days: 1
           path: |
             **/target/surefire-reports/*
@@ -346,7 +347,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: integration-test-mimir-logs-${{ runner.os }}-${{ matrix.java }}
+          name: integration-test-mimir-logs-${{ runner.os }}-${{ matrix.java }}-shard-${{ matrix.shard }}
           include-hidden-files: true
           retention-days: 1
           path: |

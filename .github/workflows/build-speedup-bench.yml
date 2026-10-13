@@ -38,6 +38,7 @@ on:
   pull_request:
     branches:
       - master
+      - cursor/mng-0095-unique-extract-1127
     paths:
       - ".github/workflows/build-speedup-bench.yml"
       - ".github/actions/build-speedup-bench/**"
