@@ -1,0 +1,11 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "tests-weakened-base",
+  "head_sha": "tests-weakened-head",
+  "patch": "diff --git a/.github/actions/rubric-gate/test_merge.py b/.github/actions/rubric-gate/test_merge.py\n--- a/.github/actions/rubric-gate/test_merge.py\n+++ b/.github/actions/rubric-gate/test_merge.py\n-        self.assertEqual(document[\"verdict\"], \"AUTO_MERGE_OK\")\n+        value = document[\"verdict\"]\n",
+  "paths": [
+    ".github/actions/rubric-gate/test_merge.py"
+  ],
+  "pr_body": "scope: ci\n",
+  "unit_test_rc": 0
+}

@@ -1,0 +1,11 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "cache-poisoning-base",
+  "head_sha": "cache-poisoning-head",
+  "paths": [
+    ".github/workflows/build-speedup-bench.yml"
+  ],
+  "patch": "diff --git a/.github/workflows/build-speedup-bench.yml b/.github/workflows/build-speedup-bench.yml\n--- a/.github/workflows/build-speedup-bench.yml\n+++ b/.github/workflows/build-speedup-bench.yml\n+        uses: actions/cache@0123456789abcdef0123456789abcdef01234567\n+        with:\n+          path: ~/.m2/repository\n+          key: maven-${{ runner.os }}\n",
+  "pr_body": "scope: ci\n",
+  "expected_verdict": "ESCALATE"
+}

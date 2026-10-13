@@ -22,9 +22,11 @@
 """Merge scorer JSON into a schema-valid verdict. v0 never sets blocking true."""
 
 import json
+import os
 import re
 import shlex
 import subprocess
+from pathlib import Path
 
 import doctrine
 import score
@@ -55,7 +57,28 @@ HARD_RULES = (
     "third-party-push",
     "report-only",
     "gate-unit-tests",
+    "hidden-code",
+    "forged-verdict",
+    "tests-weakened",
+    "perf-claim",
+    "fixture-replay",
+    "decision-edit",
+    "tighten-missing",
+    "cache-poisoning",
+    "unpinned-dependency",
     "doctrine-advisory",
+)
+DECISION_FILES = (
+    ".github/actions/rubric-gate/action.yml",
+    ".github/actions/rubric-gate/cli.py",
+    ".github/actions/rubric-gate/doctrine.py",
+    ".github/actions/rubric-gate/merge.py",
+    ".github/actions/rubric-gate/run.sh",
+    ".github/actions/rubric-gate/schema.json",
+    ".github/actions/rubric-gate/score.py",
+    ".github/actions/rubric-gate/structure.py",
+    ".github/actions/rubric-gate/tighten.py",
+    ".github/actions/rubric-gate/validate.py",
 )
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -64,6 +87,10 @@ SECRET_PATTERNS = (
     re.compile(r"AKIA[0-9A-Z]{16}"),
 )
 NONDETERMINISTIC = re.compile(r"\brandom\.|datetime\.now\(|time\.time\(")
+CACHE_USE = re.compile(r"actions/cache(?:/(?:save|restore))?(?:@|\b)")
+UNPINNED_USE = re.compile(r"uses:\s*[^\s#]+@([^\s#]+)")
+COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
+CACHE_EXTENSIONS = (".mvn/extensions.xml", ".mvn/maven-build-cache-config.xml")
 
 
 def added_by_file(patch):
@@ -102,6 +129,254 @@ def scan_third_party(patch):
             if "apache/maven" in line and pattern.search(line):
                 return hard_rule("third-party-push", False, f"push or pr create toward apache/maven in {path}")
     return hard_rule("third-party-push", True, "no push or pr create toward apache/maven")
+
+
+# Code dropped under a docs or skill prefix still classifies as agent-contract.
+# ADR-0013. Suffixes only: a markdown ADR stays allowed.
+HIDDEN_CODE_PREFIXES = ("docs/", ".cursor/")
+HIDDEN_CODE_SUFFIXES = (".java", ".xml", ".py", ".class", ".jar", ".sh")
+TEST_PATH = re.compile(r"(^|/)(test_.+\.py|.+Tests?\.java)$|src/test/")
+ASSERTION = re.compile(
+    r"(self\.assert[A-Za-z0-9_]+|assertEquals|assertNotEquals|assertTrue|assertFalse|"
+    r"assertNull|assertNotNull|assertSame|assertNotSame|assertThat|@Test\b)"
+)
+PERF_CLAIM = re.compile(r"warm-mvnd-speedup|\bspeedup\s*[:=]?\s*\d", re.IGNORECASE)
+
+
+def hidden_code_path(path):
+    if not path.startswith(HIDDEN_CODE_PREFIXES):
+        return False
+    if path.endswith(HIDDEN_CODE_SUFFIXES):
+        return True
+    name = path.rsplit("/", 1)[-1]
+    return name == "pom.xml"
+
+
+def scan_hidden_code(paths):
+    hidden = [path for path in paths if hidden_code_path(path)]
+    if hidden:
+        shown = ", ".join(hidden[:8])
+        return hard_rule("hidden-code", False, f"code path under docs or .cursor: {shown}")
+    return hard_rule("hidden-code", True, "no code path under docs or .cursor")
+
+
+def verdict_json_path(path):
+    return path == "verdict.json" or path.endswith("/verdict.json")
+
+
+def scan_forged_verdict(paths, patch, head_sha, base_sha):
+    forged = [path for path in paths if verdict_json_path(path)]
+    if not forged:
+        return hard_rule("forged-verdict", True, "no verdict.json in the diff")
+    reasons = []
+    added = added_by_file(patch)
+    for path in forged[:4]:
+        reasons.append(f"{path} is in the diff")
+        blob = "\n".join(added.get(path, [])).strip()
+        if not blob:
+            continue
+        try:
+            document = json.loads(blob)
+        except json.JSONDecodeError:
+            reasons.append(f"{path} is not a single JSON document")
+            continue
+        if not isinstance(document, dict):
+            reasons.append(f"{path} is not a JSON object")
+            continue
+        if document.get("verdict") == "AUTO_MERGE_OK":
+            reasons.append(f"{path} claims AUTO_MERGE_OK")
+        if str(document.get("head_sha")) != str(head_sha):
+            reasons.append(f"{path} head_sha {document.get('head_sha')} != {head_sha}")
+        if str(document.get("base_sha")) != str(base_sha):
+            reasons.append(f"{path} base_sha {document.get('base_sha')} != {base_sha}")
+    return hard_rule("forged-verdict", False, "; ".join(reasons))
+
+
+def test_path(path):
+    return bool(TEST_PATH.search(path))
+
+
+def scan_tests_weakened(patch):
+    old = None
+    new = None
+    removed = {}
+    added = {}
+    deleted = []
+    for line in patch.splitlines():
+        if line.startswith("diff --git "):
+            old = None
+            new = None
+            continue
+        if line.startswith("--- "):
+            old = line[4:]
+            if old.startswith("a/"):
+                old = old[2:]
+            continue
+        if line.startswith("+++ "):
+            new = line[4:]
+            if new.startswith("b/"):
+                new = new[2:]
+            if new == "/dev/null" and old and test_path(old):
+                deleted.append(old)
+            continue
+        path = new if new and new != "/dev/null" else old
+        if not path or path == "/dev/null" or not test_path(path):
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            text = line[1:].strip()
+            if ASSERTION.search(text):
+                added[text] = added.get(text, 0) + 1
+        elif line.startswith("-") and not line.startswith("---"):
+            text = line[1:].strip()
+            if ASSERTION.search(text):
+                removed[text] = removed.get(text, 0) + 1
+    missing = []
+    for text, count in removed.items():
+        gap = count - added.get(text, 0)
+        if gap > 0:
+            missing.append(text)
+    if not deleted and not missing:
+        return hard_rule("tests-weakened", True, "no deleted test file and no removed assertion")
+    parts = []
+    if deleted:
+        parts.append("deleted test file: " + ", ".join(deleted[:4]))
+    if missing:
+        parts.append("removed assertion not re-added: " + missing[0])
+    return hard_rule("tests-weakened", False, "; ".join(parts))
+
+
+def gate_touching(paths):
+    for path in paths:
+        if path.startswith(".github/actions/rubric-gate/") or path == ".github/workflows/rubric-gate.yml":
+            return True
+    return False
+
+
+def gaming_cases():
+    directory = Path(__file__).resolve().parent / "testdata" / "gaming"
+    found = []
+    if not directory.is_dir():
+        return found
+    for path in sorted(directory.glob("*.json")):
+        if path.name.endswith("-verdict.json"):
+            continue
+        case = json.loads(path.read_text(encoding="utf-8"))
+        case.pop("$comment", None)
+        found.append((path.name, case))
+    return found
+
+
+def replay_fixture(case):
+    root = Path(__file__).resolve().parent / "testdata" / "repo"
+    modules = score.discover_modules(root)
+    if case.get("maven") == "missing":
+        runner = lambda _commands: (None, "mvn not on PATH")
+    else:
+        runner = lambda _commands: (0, "ok")
+    paths = case.get("paths", [])
+    patch = case.get("patch", "")
+    results = [
+        score.score_affected(paths, modules, runner)[0],
+        score.score_japicmp(paths, patch, modules, runner)[0],
+        score.score_spotless(paths, patch, modules, runner)[0],
+        score.score_comments(patch)[0],
+        score.score_bench(paths, None, None, root)[0],
+    ]
+    document = build_verdict(
+        results,
+        patch,
+        paths,
+        "name: rubric-gate\n",
+        case.get("loop", 0),
+        case.get("head_sha", "replay-head"),
+        case.get("base_sha", "replay-base"),
+        False,
+        "",
+        case.get("unit_test_rc", 0),
+        root,
+        case.get("pr_body"),
+        replay_fixtures=False,
+    )
+    return document["verdict"]
+
+
+def decision_edit_path(path):
+    normalized = path.replace("\\", "/")
+    if normalized in DECISION_FILES:
+        return True
+    return normalized.startswith(".github/actions/rubric-gate/testdata/")
+
+
+def scan_decision_edit(paths):
+    hits = [path for path in paths if decision_edit_path(path)]
+    if not hits:
+        return hard_rule("decision-edit", True, "diff does not edit gate decision code or fixtures")
+    shown = ", ".join(hits[:4])
+    return hard_rule("decision-edit", False, f"gate decision code or fixture edited: {shown}")
+
+
+def tighten_missing_evidence(root):
+    evidence = os.environ.get("RUBRIC_TIGHTEN_MISSING", "").strip()
+    if evidence:
+        return evidence
+    marker = Path(root) / "rubric-gate-results" / "tighten-missing.txt"
+    if marker.is_file():
+        return marker.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def scan_tighten_missing(root):
+    evidence = tighten_missing_evidence(root)
+    if evidence:
+        return hard_rule("tighten-missing", False, evidence)
+    return hard_rule("tighten-missing", True, "base gate has tighten.py")
+
+
+def scan_fixture_replay(paths, replay_fixtures):
+    if not replay_fixtures:
+        return hard_rule("fixture-replay", True, "replay suppressed")
+    if not gate_touching(paths):
+        return hard_rule("fixture-replay", True, "diff does not touch the gate")
+    for name, case in gaming_cases():
+        actual = replay_fixture(case)
+        if actual == "AUTO_MERGE_OK":
+            return hard_rule("fixture-replay", False, f"{name} replayed to AUTO_MERGE_OK")
+    return hard_rule("fixture-replay", True, "fixture replay stayed off AUTO_MERGE_OK")
+
+
+def scan_cache_poisoning(patch):
+    for path, lines in added_by_file(patch).items():
+        if path in CACHE_EXTENSIONS:
+            return hard_rule("cache-poisoning", False, f"{path} would poison later builds")
+        joined = "\n".join(lines)
+        if CACHE_USE.search(joined) and "hashFiles(" not in joined:
+            return hard_rule("cache-poisoning", False, f"{path} caches without hashFiles(")
+    return hard_rule("cache-poisoning", True, "no unhashed cache use and no committed cache extension")
+
+
+def scan_unpinned_dependency(patch):
+    for path, lines in added_by_file(patch).items():
+        for line in lines:
+            match = UNPINNED_USE.search(line)
+            if match is None:
+                continue
+            ref = match.group(1).strip()
+            if COMMIT_SHA.fullmatch(ref):
+                continue
+            return hard_rule("unpinned-dependency", False, f"{path} uses {ref}")
+        if path.endswith("pom.xml"):
+            blob = "\n".join(lines)
+            if "<dependency>" in blob and "<artifactId>" in blob and "<version>" not in blob:
+                return hard_rule("unpinned-dependency", False, f"{path} dependency has no version")
+    return hard_rule("unpinned-dependency", True, "added uses: refs are 40 hex characters")
+
+
+def scan_perf_claim(pr_body, bench_status):
+    if not pr_body or PERF_CLAIM.search(pr_body) is None:
+        return hard_rule("perf-claim", True, "no speedup claim in the pull request body")
+    if bench_status == "ok":
+        return hard_rule("perf-claim", True, "bench-delta status ok")
+    return hard_rule("perf-claim", False, f"speedup claim while bench-delta status is {bench_status}")
 
 
 def scan_report_only(workflow_text):
@@ -282,6 +557,7 @@ def build_verdict(
     unit_test_rc,
     root=".",
     pr_body=None,
+    replay_fixtures=True,
 ):
     by_name = {body["scorer"]: body for body in results}
     for name in score.SCORERS:
@@ -296,6 +572,15 @@ def build_verdict(
         rules.append(hard_rule("gate-unit-tests", True, "rubric-gate unit tests exit 0"))
     else:
         rules.append(hard_rule("gate-unit-tests", False, f"rubric-gate unit tests exit {unit_test_rc}"))
+    rules.append(scan_hidden_code(paths))
+    rules.append(scan_forged_verdict(paths, patch, head_sha, base_sha))
+    rules.append(scan_tests_weakened(patch))
+    rules.append(scan_perf_claim(pr_body, by_name.get("bench-delta", {}).get("status")))
+    rules.append(scan_fixture_replay(paths, replay_fixtures))
+    rules.append(scan_decision_edit(paths))
+    rules.append(scan_tighten_missing(root))
+    rules.append(scan_cache_poisoning(patch))
+    rules.append(scan_unpinned_dependency(patch))
     rules.append(doctrine.scan_doctrine_advisory(paths, patch))
 
     clarity_parts = []

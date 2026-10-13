@@ -1,0 +1,10 @@
+{
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0.",
+  "base_sha": "hidden-sh-base",
+  "head_sha": "hidden-sh-head",
+  "patch": "diff --git a/docs/agents/run.sh b/docs/agents/run.sh\nnew file mode 100644\n--- /dev/null\n+++ b/docs/agents/run.sh\n+#!/bin/sh\n+echo hi\n",
+  "paths": [
+    "docs/agents/run.sh"
+  ],
+  "pr_body": "scope: agent-contract\n"
+}

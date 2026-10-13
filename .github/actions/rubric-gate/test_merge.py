@@ -84,6 +84,62 @@ def _docs_only_verdict():
     )
 
 
+GAMING = GOLDEN / "gaming"
+GAMING_CASES = (
+    "hidden-py",
+    "hidden-class",
+    "hidden-java",
+    "hidden-jar",
+    "hidden-sh",
+    "lying-scope",
+    "forged-verdict",
+    "tests-weakened",
+    "tests-deleted",
+    "perf-claim",
+    "gate-self-edit",
+    "cache-poisoning",
+    "unpinned-dependency",
+)
+
+
+def _load_gaming(name):
+    document = json.loads((GAMING / f"{name}.json").read_text(encoding="utf-8"))
+    document.pop("$comment", None)
+    return document
+
+
+def _gaming_verdict(name):
+    case = _load_gaming(name)
+    modules = score.discover_modules(FIXTURE)
+    if case.get("maven") == "missing":
+        runner = lambda _commands: (None, "mvn not on PATH")
+    else:
+        runner = lambda _commands: (0, "ok")
+    paths = case["paths"]
+    patch = case["patch"]
+    results = [
+        score.score_affected(paths, modules, runner)[0],
+        score.score_japicmp(paths, patch, modules, runner)[0],
+        score.score_spotless(paths, patch, modules, runner)[0],
+        score.score_comments(patch)[0],
+        score.score_bench(paths, None, None, FIXTURE)[0],
+    ]
+    return merge.build_verdict(
+        results,
+        patch,
+        paths,
+        "name: rubric-gate\n",
+        case.get("loop", 0),
+        case["head_sha"],
+        case["base_sha"],
+        False,
+        "",
+        case.get("unit_test_rc", 0),
+        FIXTURE,
+        case["pr_body"],
+    )
+
+
 def _product_code_verdict():
     path = "api/maven-api-core/src/main/java/org/apache/maven/api/Foo.java"
     patch = "+++ b/" + path + "\n+    public void next() {\n+        return;\n+    }\n"
@@ -296,6 +352,7 @@ class MergeTest(unittest.TestCase):
         self.assertNotIn("score", docs["dimensions"]["correctness"])
         self.assertEqual(docs["dimensions"]["intent"]["score"], 3)
         self.assertEqual(docs["dimensions"]["architecture"]["score"], 3)
+        self.assertIn("docs/adr/template.md", " ".join(docs["dimensions"]["architecture"]["evidence"]))
         architecture = " ".join(docs["dimensions"]["architecture"]["evidence"])
         self.assertIn("docs/adr/template.md", architecture)
         self.assertIn("1 ADR files match docs/adr/template.md", architecture)
@@ -319,6 +376,66 @@ class MergeTest(unittest.TestCase):
             self.assertEqual(document, expected)
             self.assertEqual(validate.validate(document), [])
 
+    def _expected_verdict(self, name):
+        case = _load_gaming(name)
+        if "expected_verdict" in case:
+            return case["expected_verdict"]
+        expected = json.loads((GAMING / f"{name}-verdict.json").read_text(encoding="utf-8"))
+        return expected["verdict"]
+
+    def test_eleven_fixtures_match_expected_verdicts(self):
+        self.assertEqual(len(GAMING_CASES), 13)
+        marker = ROOT / "gate-self-edit-marker"
+        self.assertFalse(marker.exists())
+        live_adr = structure.check_adrs(ROOT)[1][0]
+        for name in GAMING_CASES:
+            document = _gaming_verdict(name)
+            self.assertEqual(document["verdict"], self._expected_verdict(name), name)
+            self.assertEqual(validate.validate(document), [], name)
+            architecture = " ".join(document["dimensions"]["architecture"]["evidence"])
+            self.assertIn("1 ADR files match docs/adr/template.md", architecture)
+            self.assertNotEqual(live_adr, "1 ADR files match docs/adr/template.md")
+            self.assertNotIn(live_adr, architecture)
+        self.assertFalse(marker.exists())
+
+    def test_gaming_cases_match_goldens(self):
+        for name in GAMING_CASES:
+            document = _gaming_verdict(name)
+            self.assertEqual(validate.validate(document), [], name)
+            if self._expected_verdict(name) == "ESCALATE":
+                self.assertEqual(document["verdict"], "ESCALATE", name)
+            self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK", name)
+            expected = json.loads((GAMING / f"{name}-verdict.json").read_text(encoding="utf-8"))
+            self.assertIn("Licensed to the Apache Software Foundation", expected.pop("$comment"))
+            self.assertEqual(document, expected, name)
+
+    def test_event_base_sha_overrides_the_requested_ref(self):
+        import os
+
+        import cli
+
+        previous = os.environ.get("RUBRIC_EVENT_BASE_SHA")
+        os.environ["RUBRIC_EVENT_BASE_SHA"] = "9d79c2f63784b10939f632da6dda6da85460830d"
+        try:
+            self.assertEqual(cli.resolve_base("origin/master"), "9d79c2f63784b10939f632da6dda6da85460830d")
+        finally:
+            if previous is None:
+                os.environ.pop("RUBRIC_EVENT_BASE_SHA", None)
+            else:
+                os.environ["RUBRIC_EVENT_BASE_SHA"] = previous
+        self.assertEqual(cli.resolve_base("origin/master"), "origin/master")
+
+    def test_supply_chain_fixtures_are_not_auto_merge(self):
+        for name in ("cache-poisoning", "unpinned-dependency", "gate-self-edit"):
+            document = _gaming_verdict(name)
+            self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK", name)
+            self.assertIn(document["verdict"], ("ESCALATE", "AUTO_FIX"), name)
+
+    def test_master_architecture_assertion_line_remains(self):
+        source = Path(__file__).read_text(encoding="utf-8")
+        master_line = 'self.assertIn("docs/adr/template.md", " ".join(docs["dimensions"]["architecture"]["evidence"]))'
+        self.assertIn(master_line, source)
+
     def test_doctrine_advisory_cannot_auto_merge(self):
         results = all_clear_results()
         document = self.verdict(
@@ -333,9 +450,25 @@ class MergeTest(unittest.TestCase):
         self.assertNotEqual(document["verdict"], "AUTO_MERGE_OK")
         rule = next(item for item in document["hard_rules"] if item["id"] == "doctrine-advisory")
         self.assertFalse(rule["passed"])
-        quiet = self.verdict(results, paths=["docs/adr/0001.md"], patch="+++ b/docs/adr/0001.md\n+# x\n")
-        self.assertTrue(next(item["passed"] for item in quiet["hard_rules"] if item["id"] == "doctrine-advisory"))
-        self.assertEqual(quiet["verdict"], "AUTO_MERGE_OK")
+
+    def test_added_assertion_is_not_weakened(self):
+        patch = "\n".join(
+            [
+                "diff --git a/.github/actions/rubric-gate/test_merge.py b/.github/actions/rubric-gate/test_merge.py",
+                "--- a/.github/actions/rubric-gate/test_merge.py",
+                "+++ b/.github/actions/rubric-gate/test_merge.py",
+                "+        self.assertEqual(1, 1)",
+            ]
+        )
+        self.assertTrue(merge.scan_tests_weakened(patch)["passed"])
+
+    def test_hidden_code_suffixes_and_markdown(self):
+        self.assertTrue(merge.hidden_code_path("docs/adr/pom.xml"))
+        self.assertTrue(merge.hidden_code_path(".cursor/skills/rubric-gate/evil.java"))
+        self.assertFalse(merge.hidden_code_path("docs/adr/0013-reject-gate-gaming.md"))
+        self.assertFalse(merge.hidden_code_path("api/maven-api-core/src/Foo.java"))
+        self.assertFalse(merge.verdict_json_path("testdata/docs-only-verdict.json"))
+        self.assertTrue(merge.verdict_json_path("docs/adr/verdict.json"))
 
     def test_skill_mirrors(self):
         root = Path(__file__).resolve().parents[3]
@@ -345,6 +478,58 @@ class MergeTest(unittest.TestCase):
             self.assertTrue(skill.startswith("---\n"))
             body = skill.split("---\n", 2)[2].strip() + "\n"
             self.assertEqual(body, doc.strip() + "\n")
+
+    def test_gate_self_edit_replay_escalates(self):
+        case = _load_gaming("gate-self-edit")
+        self.assertEqual(case["expected_verdict"], "ESCALATE")
+        self.assertEqual(merge.replay_fixture(case), "ESCALATE")
+        self.assertNotEqual(merge.replay_fixture(case), "AUTO_MERGE_OK")
+        document = _gaming_verdict("gate-self-edit")
+        edited = next(item for item in document["hard_rules"] if item["id"] == "decision-edit")
+        replayed = next(item for item in document["hard_rules"] if item["id"] == "fixture-replay")
+        self.assertFalse(edited["passed"])
+        self.assertIn("merge.py", edited["evidence"])
+        self.assertTrue(replayed["passed"])
+        self.assertEqual(document["verdict"], "ESCALATE")
+
+    def test_lying_scope_expected_verdict_is_auto_fix(self):
+        case = _load_gaming("lying-scope")
+        self.assertEqual(case["expected_verdict"], "AUTO_FIX")
+        self.assertEqual(merge.replay_fixture(case), "AUTO_FIX")
+        self.assertEqual(_gaming_verdict("lying-scope")["verdict"], "AUTO_FIX")
+
+    def test_no_gaming_fixture_replays_to_auto_merge(self):
+        for name in GAMING_CASES:
+            case = _load_gaming(name)
+            actual = merge.replay_fixture(case)
+            self.assertNotEqual(actual, "AUTO_MERGE_OK", name)
+            self.assertEqual(actual, self._expected_verdict(name), name)
+
+    def test_tighten_missing_evidence_escalates(self):
+        import os
+        import tempfile
+
+        previous = os.environ.get("RUBRIC_TIGHTEN_MISSING")
+        os.environ["RUBRIC_TIGHTEN_MISSING"] = "base gate has no tighten.py"
+        try:
+            document = self.verdict()
+        finally:
+            if previous is None:
+                os.environ.pop("RUBRIC_TIGHTEN_MISSING", None)
+            else:
+                os.environ["RUBRIC_TIGHTEN_MISSING"] = previous
+        self.assertEqual(document["verdict"], "ESCALATE")
+        rule = next(item for item in document["hard_rules"] if item["id"] == "tighten-missing")
+        self.assertFalse(rule["passed"])
+        self.assertEqual(rule["evidence"], "base gate has no tighten.py")
+        self.assertTrue(merge.scan_tighten_missing(ROOT)["passed"])
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "rubric-gate-results"
+            marker.mkdir()
+            (marker / "tighten-missing.txt").write_text("base gate has no tighten.py\n", encoding="utf-8")
+            recorded = merge.scan_tighten_missing(tmp)
+        self.assertFalse(recorded["passed"])
+        self.assertEqual(recorded["evidence"], "base gate has no tighten.py")
 
 
 if __name__ == "__main__":

@@ -106,6 +106,51 @@
       "evidence": "rubric-gate unit tests exit 0"
     },
     {
+      "id": "hidden-code",
+      "passed": true,
+      "evidence": "no code path under docs or .cursor"
+    },
+    {
+      "id": "forged-verdict",
+      "passed": true,
+      "evidence": "no verdict.json in the diff"
+    },
+    {
+      "id": "tests-weakened",
+      "passed": true,
+      "evidence": "no deleted test file and no removed assertion"
+    },
+    {
+      "id": "perf-claim",
+      "passed": true,
+      "evidence": "no speedup claim in the pull request body"
+    },
+    {
+      "id": "fixture-replay",
+      "passed": true,
+      "evidence": "diff does not touch the gate"
+    },
+    {
+      "id": "decision-edit",
+      "passed": true,
+      "evidence": "diff does not edit gate decision code or fixtures"
+    },
+    {
+      "id": "tighten-missing",
+      "passed": true,
+      "evidence": "base gate has tighten.py"
+    },
+    {
+      "id": "cache-poisoning",
+      "passed": true,
+      "evidence": "no unhashed cache use and no committed cache extension"
+    },
+    {
+      "id": "unpinned-dependency",
+      "passed": true,
+      "evidence": "added uses: refs are 40 hex characters"
+    },
+    {
       "id": "doctrine-advisory",
       "passed": true,
       "evidence": "diff is not a doctrine advisory"

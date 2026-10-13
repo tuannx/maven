@@ -220,6 +220,32 @@ class ApplicabilityTest(unittest.TestCase):
         self.assertEqual(item["state"], "no_evidence")
         self.assertLessEqual(item["score"], 2)
 
+    def test_fixture_pom_runs_same_head_spotless(self):
+        path = ".github/actions/rubric-gate/testdata/repo/api/maven-api-core/pom.xml"
+        patch = "+++ b/" + path + "\n+<project/>\n"
+        body, plan = score.score_spotless(
+            [path],
+            patch,
+            ["api/maven-api-core", "api"],
+            lambda _commands: (0, "ok"),
+        )
+        self.assertTrue(plan["needs_maven"])
+        self.assertEqual(plan["modules"], ["api/maven-api-core"])
+        self.assertIn("spotless:check", plan["commands"][0])
+        item = body["dimensions"]["clarity"]
+        self.assertEqual(item["state"], "scored")
+        self.assertEqual(item["score"], 3)
+        self.assertIn("spotless:check exit 0", item["evidence"])
+
+    def test_unmapped_java_runs_same_head_spotless(self):
+        path = "its/core-it-suite/src/test/java/org/apache/maven/it/A.java"
+        patch = "+++ b/" + path + "\n+class A {}\n"
+        body, plan = score.score_spotless([path], patch, ["api/maven-api-core"], lambda _commands: (0, "ok"))
+        self.assertEqual(plan["reason"], "java-xml-same-head")
+        self.assertEqual(plan["modules"], ["api/maven-api-core"])
+        self.assertEqual(body["dimensions"]["clarity"]["state"], "scored")
+        self.assertIn("spotless:check exit 0", body["dimensions"]["clarity"]["evidence"])
+
     def test_spotless_skipped_on_java_is_no_evidence(self):
         path = "api/maven-api-core/src/main/java/A.java"
         patch = "+++ b/" + path + "\n+int a; \n"

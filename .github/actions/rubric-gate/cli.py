@@ -32,6 +32,13 @@ import merge
 import score
 
 
+def resolve_base(requested):
+    event_sha = os.environ.get("RUBRIC_EVENT_BASE_SHA", "").strip()
+    if event_sha:
+        return event_sha
+    return requested
+
+
 def git_rev(root, ref):
     completed = subprocess.run(
         ["git", "rev-parse", ref],
@@ -202,6 +209,7 @@ def main(argv):
     root = Path(args.root)
     if not args.base:
         args.base = os.environ.get("RUBRIC_GATE_BASE", "")
+    args.base = resolve_base(args.base)
     if args.command != "merge" and not args.base:
         raise SystemExit("rubric-gate needs --base or RUBRIC_GATE_BASE")
     paths, patch = load_context(root, args.base) if args.base else ([], "")

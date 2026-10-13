@@ -57,6 +57,10 @@ inputs:
     description: Exit code of the gate unit tests. Non-zero escalates.
     required: false
     default: "0"
+  tighten-missing:
+    description: Evidence that the base gate has no tighten.py. Empty when the file is present. Non-empty escalates.
+    required: false
+    default: ""
 
 outputs:
   needs_maven:
@@ -81,9 +85,11 @@ runs:
         RUBRIC_COMMAND: ${{ inputs.command }}
         RUBRIC_SCORER: ${{ inputs.scorer }}
         RUBRIC_BASE: ${{ inputs.base }}
+        RUBRIC_EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         RUBRIC_OUT: ${{ inputs.out }}
         RUBRIC_LOOP: ${{ inputs.loop }}
         RUBRIC_LLM_HOOK: ${{ inputs.llm-hook }}
         RUBRIC_LLM_HOOK_COMMAND: ${{ inputs.llm-hook-command }}
         RUBRIC_UNIT_TEST_RC: ${{ inputs.unit-test-rc }}
+        RUBRIC_TIGHTEN_MISSING: ${{ inputs.tighten-missing }}
       run: bash "$GITHUB_ACTION_PATH/run.sh"
