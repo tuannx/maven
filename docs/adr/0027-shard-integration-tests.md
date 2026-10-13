@@ -43,6 +43,17 @@ The integration-tests matrix gains `shard` `0` and `1`. Both pass `-Dits.shard` 
 
 Each shard repeats the reactor build. Eighteen integration-tests jobs can queue behind the hosted runner cap, so the workflow wall clock may fall by less than the cell median. A class moves shards when its name changes.
 
+One sample, same `ubuntu-latest` / `macos-latest` / `windows-latest` runners. PR #8 run [37329433772](https://github.com/tuannx/maven/actions/runs/37329433772) versus this branch run [38273056619](https://github.com/tuannx/maven/actions/runs/38273056619). Job duration is `completed_at` minus `started_at`. The IT span is the first integration-tests `started_at` through the last `completed_at`.
+
+| | #8, 9 jobs | sharded, 18 jobs |
+|---|---:|---:|
+| slowest integration-tests job | 2013s (windows-latest, 21) | 1613s (windows-latest, 21, shard 0) |
+| sum of integration-tests job durations | 12149s | 19098s |
+| integration-tests span | 6013s | 13005s |
+| Java CI run wall clock | 6525s | 15357s |
+
+The slowest job fell 400s (20%). Runner time rose 6949s (57%) because each shard repeats the reactor. The run wall clock rose because eighteen jobs queued; the span is not the slowest job. A second sample is the Java CI run on the head that adds the rubric-gate and bench branch filters.
+
 ## Revisit when
 
-A cell median is still above the pre-shard median after run, or a shard logs `shared fixture collision`.
+The second sample's slowest job is above the pre-shard slowest job, or a shard logs `shared fixture collision`.
