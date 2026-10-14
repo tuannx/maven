@@ -156,15 +156,15 @@ jobs:
           distribution: 'temurin'
 
       - name: Install Graphviz (MacOS)
-        if: runner.os == 'macOS'
+        if: github.event_name == 'push' && runner.os == 'macOS'
         run: brew install graphviz
 
       - name: Install Graphviz (Ubuntu)
-        if: runner.os == 'Linux'
+        if: github.event_name == 'push' && runner.os == 'Linux'
         run: sudo apt-get install graphviz
 
       - name: Install Graphviz (Windows)
-        if: runner.os == 'Windows'
+        if: github.event_name == 'push' && runner.os == 'Windows'
         run: choco install graphviz
 
       - name: Checkout maven
@@ -222,6 +222,7 @@ jobs:
         run: mvn verify -Papache-release -Dgpg.skip=true -e -B -V
 
       - name: Build site with downloaded Maven
+        if: github.event_name == 'push'
         shell: bash
         run: mvn site -e -B -V -Preporting
 
