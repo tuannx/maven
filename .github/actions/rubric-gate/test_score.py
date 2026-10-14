@@ -242,6 +242,52 @@ class ApplicabilityTest(unittest.TestCase):
         self.assertEqual(item["state"], "scored")
         self.assertEqual(item["score"], 3)
 
+    def test_its_java_is_covered_without_spotless(self):
+        path = "its/core-it-support/maven-it-helper/src/test/java/org/apache/maven/it/SharedFixtureIsolationTest.java"
+        patch = "+++ b/" + path + "\n+class SharedFixtureIsolationTest {}\n"
+        called = []
+
+        def runner(commands):
+            called.append(commands)
+            return None, "mvn not on PATH"
+
+        body, plan = score.score_spotless([path], patch, [], runner)
+        self.assertEqual(plan["reason"], "its-covered")
+        self.assertFalse(plan["needs_maven"])
+        self.assertEqual(called, [])
+        item = body["dimensions"]["clarity"]
+        self.assertEqual(item["state"], "scored")
+        self.assertEqual(item["score"], 3)
+        self.assertIn("its/ covered", item["evidence"])
+        self.assertNotIn("spotless not run", item["evidence"])
+
+    def test_its_java_trailing_whitespace_scores_one(self):
+        path = "its/core-it-support/maven-it-helper/src/main/java/org/apache/maven/it/Verifier.java"
+        patch = "+++ b/" + path + "\n+int value; \n"
+        body, plan = score.score_spotless([path], patch, [], lambda _commands: (0, ""))
+        self.assertEqual(plan["reason"], "its-covered")
+        item = body["dimensions"]["clarity"]
+        self.assertEqual(item["state"], "scored")
+        self.assertEqual(item["score"], 1)
+        self.assertIn("its/ covered", item["evidence"])
+
+    def test_product_java_still_requires_spotless_beside_its(self):
+        its_path = "its/core-it-support/maven-it-helper/src/main/java/org/apache/maven/it/Verifier.java"
+        product = "api/maven-api-core/src/main/java/A.java"
+        patch = "+++ b/" + product + "\n+int a;\n"
+        body, plan = score.score_spotless(
+            [its_path, product],
+            patch,
+            ["api/maven-api-core"],
+            lambda _commands: (None, "mvn not on PATH"),
+        )
+        self.assertEqual(plan["reason"], "java-xml")
+        self.assertEqual(plan["targets"], [product])
+        self.assertTrue(plan["needs_maven"])
+        item = body["dimensions"]["clarity"]
+        self.assertEqual(item["state"], "no_evidence")
+        self.assertIn("spotless not run", item["evidence"])
+
 
 class DiscoverTmpTest(unittest.TestCase):
     def test_tmp_tree(self):
