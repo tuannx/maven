@@ -51,7 +51,7 @@ Each dimension has `state` and a non-empty evidence array. Only `scored` and `no
 |---|---|
 | correctness, tests | affected-build. No product module: `not_applicable`. Root `pom.xml` or `.mvn/maven.config`: `no_evidence`. Maven missing: `no_evidence`. Compile failure: correctness 0. Test failure: tests 0 |
 | compat | japicmp on bound modules (`compat/*` listed in `score.py`, `impl/maven-core`). No bound module and no `api/` signature line: `not_applicable`. An `api/` public or protected signature line without a bound run: `no_evidence` |
-| clarity | minimum of the applicable spotless and comment-density parts. Java or XML changed and `spotless:check` did not run: `no_evidence`. No added source lines: `not_applicable` |
+| clarity | minimum of the applicable spotless and comment-density parts. Java or XML only under `its/` is covered by the format check (ADR-0034); the its reactor does not bind spotless. Other Java or XML without `spotless:check`: `no_evidence`. No added source lines: `not_applicable` |
 | perf | bench-delta. ADR-0012. A diff outside the `build-speedup-bench` path filter is `not_applicable` and does not poll. A matching diff reuses the run for `github.event.pull_request.head.sha` (`github.sha` otherwise). The wait is at most 13 attempts. A miss, a mismatched `head_sha`, or a run still in progress at the bound is `no_evidence` and does not score 3 |
 | security | hard rules below. A failed security rule scores 0 |
 | intent | ADR-0011. 3 when the pull request body has `scope:` and every changed path is in a named group. 1 when the line is missing, names an unknown group, or leaves a path out. `no_evidence` when the body was not supplied |

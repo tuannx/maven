@@ -163,13 +163,21 @@ def plan_japicmp(paths, modules):
     return {"needs_maven": True, "commands": maven_commands(selected, "verify"), "reason": "modules", "modules": selected}
 
 
+def its_source_path(path):
+    # ADR-0034. The its reactor parent does not bind spotless.
+    return path == "its" or path.startswith("its/")
+
+
 def java_xml_paths(paths):
-    return [path for path in paths if path.endswith((".java", ".xml"))]
+    return [path for path in paths if path.endswith((".java", ".xml")) and not its_source_path(path)]
 
 
 def plan_spotless(paths, modules):
+    raw = [path for path in paths if path.endswith((".java", ".xml"))]
     targets = java_xml_paths(paths)
     if not targets:
+        if raw:
+            return {"needs_maven": False, "commands": [], "reason": "its-covered", "targets": raw}
         return {"needs_maven": False, "commands": [], "reason": "no-java-xml"}
     selected = select_modules(targets, modules)
     leaves = [module for module in selected if module.count("/") >= 1]
@@ -590,9 +598,18 @@ def _spotless_gap(heuristic):
     return no_evidence(evidence)
 
 
+def _its_covered(heuristic):
+    if heuristic["state"] == "not_applicable":
+        return not_applicable(["its/ covered", "no added source lines for format"])
+    return dim(heuristic["score"], ["its/ covered", *heuristic["evidence"]])
+
+
 def score_spotless(paths, patch, modules, maven_runner):
     plan = plan_spotless(paths, modules)
     heuristic = score_format(patch)
+    if plan["reason"] == "its-covered":
+        item = _its_covered(heuristic)
+        return result("spotless", "skipped", {"clarity": item}, item["evidence"]), plan
     if plan["reason"] == "no-java-xml":
         if heuristic["state"] == "not_applicable":
             item = not_applicable("no java or xml in the diff")
